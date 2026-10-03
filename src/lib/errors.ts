@@ -9,14 +9,30 @@ export class ConfigurationError extends Error {
 }
 
 /** Thrown when an upstream provider (e.g. SerpApi) request fails. */
+export interface UpstreamErrorDetails {
+  /** HTTP status returned by the provider, when the request reached it. */
+  httpStatus?: number;
+  /**
+   * Sanitized provider error text. Safe by construction: the API key value
+   * is redacted before storage, length-capped, and never includes URLs.
+   */
+  providerError?: string;
+}
+
 export class UpstreamError extends Error {
   readonly code = "UPSTREAM_ERROR";
   readonly status?: number;
+  readonly details?: UpstreamErrorDetails;
 
-  constructor(message = "Upstream provider request failed.", status?: number) {
+  constructor(
+    message = "Upstream provider request failed.",
+    status?: number,
+    details?: UpstreamErrorDetails,
+  ) {
     super(message);
     this.name = "UpstreamError";
     this.status = status;
+    this.details = details;
   }
 }
 
