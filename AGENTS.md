@@ -36,13 +36,15 @@ The main verification concept is called **`RealityCheck`**.
 Every important travel recommendation (timings, routes, prices, opening hours,
 availability, feasibility) should eventually be backed by evidence from live data.
 
-## 2. Development Scope — Current Constraint
+## 2. Development Scope — Current Status
 
-- **For now, only create `AGENTS.md`.**
-- Do **not** build the frontend or backend yet.
-- Do **not** create the full application yet.
-- Do **not** start implementing the complete application before architecture
-  and configuration (Phase 1) are agreed.
+- **Milestone 0 (completed):** repository foundation and initial `AGENTS.md` setup.
+- **Phase 1 (in progress):** Technical Architecture & Environment Configuration.
+- Application development is now permitted, strictly according to the phased
+  plan in Section 3.
+- Do **not** build the complete application yet — implement only what the
+  current phase requires.
+- Do **not** skip ahead to later phases without validating earlier phases.
 
 ## 3. Development Approach (Incremental Phases)
 
