@@ -1,14 +1,14 @@
-# Server services (Phase 1 placeholder)
+# Server services
 
-No service implementations live here yet. This directory reserves the modular
-layout for future phases. All SerpApi access must be isolated under
-`src/server/services/serpapi/` (server-side only) starting in Phase 2.
+`src/server/services/serpapi/` holds the Phase 2 SerpApi gateway
+(`SerpApiClient` + types). All SerpApi access must be isolated there
+(server-side only). No other service implementations live here yet.
 
 ## Planned services
 
 | Service               | Phase | Notes                                              |
 | --------------------- | ----- | -------------------------------------------------- |
-| SerpApiService        | 2     | Single gateway for all SerpApi engines             |
+| SerpApiService        | 2     | Implemented: gateway in `serpapi/` (Google Search first) |
 | SearchService         | 3+    | Google Search via SerpApiService                   |
 | MapsService           | 3+    | Places / local discovery via SerpApiService        |
 | NewsService           | 3+    | Travel news via SerpApiService                     |

@@ -39,7 +39,10 @@ availability, feasibility) should eventually be backed by evidence from live dat
 ## 2. Development Scope — Current Status
 
 - **Milestone 0 (completed):** repository foundation and initial `AGENTS.md` setup.
-- **Phase 1 (in progress):** Technical Architecture & Environment Configuration.
+- **Phase 1 (completed):** Technical Architecture & Environment Configuration.
+- **Phase 2 Step 1 (completed):** Secure SerpApi Search Engine API integration
+  and live connectivity test (Google Search gateway + test endpoint).
+- **Phase 2 Step 2 (next):** second SerpApi engine and deeper live-data use.
 - Application development is now permitted, strictly according to the phased
   plan in Section 3.
 - Do **not** build the complete application yet — implement only what the
@@ -51,8 +54,8 @@ availability, feasibility) should eventually be backed by evidence from live dat
 Build GhoomAI incrementally. Do not skip directly to later phases without
 validating earlier phases.
 
-- **Phase 1:** Project architecture and configuration.
-- **Phase 2:** Secure SerpApi integration and a minimal connectivity test.
+- **Phase 1 (completed):** Project architecture and configuration.
+- **Phase 2 (in progress — Step 1 completed, Step 2 next):** Secure SerpApi integration and a minimal connectivity test.
 - **Phase 3:** Basic GhoomAI interaction with live SerpApi data.
 - **Phase 4:** Trip planning.
 - **Phase 5:** RealityCheck verification engine.
