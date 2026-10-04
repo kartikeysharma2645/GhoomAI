@@ -22,6 +22,26 @@
   later, Phase 4 trip planning and Phase 5 RealityCheck evidence
   (ratings, hours, addresses verified against live data).
 
+## Google Hotels search (Phase 2 Step 3)
+
+- Method: `SerpApiClient.searchHotels({ query, checkIn, checkOut, adults?,
+  children?, childrenAges?, currency?, language?, country? })`
+- SerpApi request: `engine=google_hotels`, `q`, required `check_in_date` /
+  `check_out_date` (`YYYY-MM-DD`, strictly ordered, calendar-validated),
+  `adults` / `children` (+ matching `children_ages`), `currency`
+  (default `INR`), optional `hl`/`gl`. No `type` parameter.
+- Test route: `GET /api/serpapi/hotels-test?q=...&check_in=...&check_out=...&adults=...&currency=...`
+  (defaults: "hotels in Jaipur", dynamic +30/+33-day window, `INR`).
+- Normalized hotel fields: name, propertyToken, propertyType, overallRating,
+  reviews, locationRating, nightly/total lowest (display + extracted
+  numerics), amenities (capped at 20), thumbnail, gpsCoordinates,
+  check-in/out times, freeCancellation (explicit boolean only, never
+  inferred). Only name is required.
+- GhoomAI usage: stay options with verifiable prices/ratings feed Phase 4
+  trip planning and Phase 5 RealityCheck price evidence.
+- Intentionally deferred: pagination (`next_page_token`) and
+  `property_token` detail lookup (later phases).
+
 ## Planned services
 
 | Service               | Phase | Notes                                              |

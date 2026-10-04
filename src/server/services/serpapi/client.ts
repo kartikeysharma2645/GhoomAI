@@ -6,11 +6,15 @@ import {
 } from "../../../lib/errors";
 import {
   SERPAPI_BASE_URL,
+  hotelsSearchParamsSchema,
   mapsSearchParamsSchema,
+  normalizeHotels,
   normalizeMapsPlaces,
   searchParamsSchema,
+  serpApiHotelsResponseSchema,
   serpApiMapsResponseSchema,
   serpApiSearchResponseSchema,
+  type NormalizedHotelsResponse,
   type NormalizedMapsResponse,
   type NormalizedSearchResponse,
 } from "./types";
@@ -268,6 +272,51 @@ export class SerpApiClient {
     }
 
     return normalizeMapsPlaces(params.query, params.location, validated.data);
+  }
+
+  /**
+   * Google Hotels search (`engine=google_hotels`).
+   * Returns normalized hotels for GhoomAI stay-planning flows.
+   */
+  async searchHotels(input: unknown): Promise<NormalizedHotelsResponse> {
+    const parsed = hotelsSearchParamsSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new ValidationError("Invalid hotels search parameters.");
+    }
+    const params = parsed.data;
+
+    const qs = new URLSearchParams({
+      engine: "google_hotels",
+      q: params.query,
+      check_in_date: params.checkIn,
+      check_out_date: params.checkOut,
+      adults: String(params.adults),
+      children: String(params.children),
+      currency: params.currency,
+      api_key: this.apiKey,
+    });
+    if (params.childrenAges && params.childrenAges.length > 0) {
+      qs.set("children_ages", params.childrenAges.join(","));
+    }
+    if (params.language) qs.set("hl", params.language);
+    if (params.country) qs.set("gl", params.country);
+
+    const json = await this.requestJson(qs);
+
+    const validated = serpApiHotelsResponseSchema.safeParse(json);
+    if (!validated.success) {
+      throw new UpstreamError(
+        "Search provider returned an unexpected response shape.",
+      );
+    }
+
+    return normalizeHotels(
+      params.query,
+      params.checkIn,
+      params.checkOut,
+      params.currency,
+      validated.data,
+    );
   }
 }
 

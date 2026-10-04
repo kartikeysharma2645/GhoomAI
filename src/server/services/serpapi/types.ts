@@ -4,11 +4,11 @@ import { z } from "zod";
 export const SERPAPI_BASE_URL = "https://serpapi.com";
 
 /** Engines verified to work through this gateway. Extend as new engines are adopted. */
-export const SUPPORTED_ENGINES = ["google", "google_maps"] as const;
+export const SUPPORTED_ENGINES = ["google", "google_maps", "google_hotels"] as const;
 
 /**
  * Engine identifier. The open `string` tail keeps the gateway extensible so
- * future engines (google_flights, google_hotels, google_news,
+ * future engines (google_flights, google_news,
  * google_lens, ...) can be added without changing the client signature.
  */
 export type SerpApiEngine = (typeof SUPPORTED_ENGINES)[number] | (string & {});
@@ -208,6 +208,259 @@ export function normalizeMapsPlaces(
     engine: "google_maps",
     query,
     ...(location ? { location } : {}),
+    resultCount: results.length,
+    results,
+  };
+}
+
+/** Strict YYYY-MM-DD shape (format only; calendar validity checked separately). */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Parses a YYYY-MM-DD string into components, or null when it is not a real
+ * calendar date (e.g. 2026-02-31). Round-trips through UTC to catch overflow.
+ */
+function parseIsoCalendarDate(value: string): {
+  y: number;
+  m: number;
+  d: number;
+} | null {
+  if (!ISO_DATE_RE.test(value)) return null;
+  const [ys, ms, ds] = value.split("-");
+  const y = Number(ys);
+  const m = Number(ms);
+  const d = Number(ds);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) {
+    return null;
+  }
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() !== m - 1 ||
+    dt.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return { y, m, d };
+}
+
+const calendarDateSchema = z
+  .string()
+  .refine((v) => parseIsoCalendarDate(v) !== null, {
+    message: "Date must be a valid YYYY-MM-DD calendar date.",
+  });
+
+/** Validated input for a Google Hotels search request. */
+export const hotelsSearchParamsSchema = z
+  .object({
+    query: z.string().min(1).max(300),
+    checkIn: calendarDateSchema,
+    checkOut: calendarDateSchema,
+    adults: z.number().int().min(1).max(16).default(2),
+    children: z.number().int().min(0).max(10).default(0),
+    childrenAges: z.array(z.number().int().min(0).max(17)).max(10).optional(),
+    currency: z.string().length(3).default("INR"),
+    language: z.string().max(10).optional(),
+    country: z.string().max(10).optional(),
+  })
+  .superRefine((val, ctx) => {
+    const ci = parseIsoCalendarDate(val.checkIn);
+    const co = parseIsoCalendarDate(val.checkOut);
+    if (ci && co) {
+      const inMs = Date.UTC(ci.y, ci.m - 1, ci.d);
+      const outMs = Date.UTC(co.y, co.m - 1, co.d);
+      if (outMs <= inMs) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["checkOut"],
+          message: "checkOut must be strictly after checkIn.",
+        });
+      }
+    }
+    const ages = val.childrenAges ?? [];
+    if (ages.length !== val.children) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["childrenAges"],
+        message: "childrenAges length must match the children count.",
+      });
+    }
+  });
+
+export type ValidatedHotelsSearchParams = z.infer<typeof hotelsSearchParamsSchema>;
+
+const hotelRateSchema = z
+  .object({
+    lowest: z.string().optional(),
+    extracted_lowest: z.number().optional(),
+  })
+  .passthrough();
+
+const hotelImageSchema = z
+  .object({
+    thumbnail: z.string().optional(),
+  })
+  .passthrough();
+
+/**
+ * Minimal shape of one SerpApi Google Hotels (`properties`) entry.
+ * Only `name` is expected; everything else is optional because hotel and
+ * vacation-rental shapes differ.
+ */
+const hotelPropertySchema = z
+  .object({
+    name: z.string().optional(),
+    type: z.string().optional(),
+    property_token: z.string().optional(),
+    overall_rating: z.number().optional(),
+    reviews: z.number().optional(),
+    location_rating: z.number().optional(),
+    rate_per_night: hotelRateSchema.optional(),
+    total_rate: hotelRateSchema.optional(),
+    amenities: z.array(z.string()).optional(),
+    thumbnail: z.string().optional(),
+    images: z.array(hotelImageSchema).optional(),
+    gps_coordinates: gpsCoordinatesSchema.optional(),
+    check_in_time: z.string().optional(),
+    check_out_time: z.string().optional(),
+    free_cancellation: z.boolean().optional(),
+  })
+  .passthrough();
+
+/** Minimal shape of a SerpApi Google Hotels response. */
+export const serpApiHotelsResponseSchema = z
+  .object({
+    properties: z.array(hotelPropertySchema).optional().default([]),
+  })
+  .passthrough();
+
+export type SerpApiHotelsResponse = z.infer<typeof serpApiHotelsResponseSchema>;
+
+/** Maximum amenities kept per hotel — bounds payload size. */
+const MAX_AMENITIES = 20;
+
+/** Normalized hotel returned to GhoomAI callers. Never contains secrets. */
+export interface NormalizedHotel {
+  position: number;
+  name: string;
+  propertyToken?: string;
+  propertyType?: string;
+  overallRating?: number;
+  reviews?: number;
+  locationRating?: number;
+  nightlyLowest?: string;
+  nightlyLowestExtracted?: number;
+  totalLowest?: string;
+  totalLowestExtracted?: number;
+  amenities?: string[];
+  thumbnail?: string;
+  gpsCoordinates?: { latitude: number; longitude: number };
+  checkInTime?: string;
+  checkOutTime?: string;
+  /**
+   * Set ONLY from an explicit boolean `free_cancellation` field upstream.
+   * Never inferred from text.
+   */
+  freeCancellation?: boolean;
+}
+
+/** Normalized Google Hotels response returned to GhoomAI callers. */
+export interface NormalizedHotelsResponse {
+  engine: "google_hotels";
+  query: string;
+  checkIn: string;
+  checkOut: string;
+  currency: string;
+  resultCount: number;
+  results: NormalizedHotel[];
+}
+
+/**
+ * Pure normalizer: validated SerpApi Hotels payload -> GhoomAI shape.
+ * Defensive against missing/malformed optional nests; never throws on
+ * property data and never invents values.
+ */
+export function normalizeHotels(
+  query: string,
+  checkIn: string,
+  checkOut: string,
+  currency: string,
+  data: z.input<typeof serpApiHotelsResponseSchema>,
+): NormalizedHotelsResponse {
+  const properties = data.properties ?? [];
+  const results: NormalizedHotel[] = properties.map((item, index) => {
+    const hotel: NormalizedHotel = {
+      position: index + 1,
+      name: item.name ?? "",
+    };
+    if (item.property_token) hotel.propertyToken = item.property_token;
+    if (item.type) hotel.propertyType = item.type;
+    if (typeof item.overall_rating === "number") {
+      hotel.overallRating = item.overall_rating;
+    }
+    if (typeof item.reviews === "number") hotel.reviews = item.reviews;
+    if (typeof item.location_rating === "number") {
+      hotel.locationRating = item.location_rating;
+    }
+    const nightly = item.rate_per_night;
+    if (nightly && typeof nightly === "object") {
+      if (nightly.lowest) hotel.nightlyLowest = nightly.lowest;
+      if (typeof nightly.extracted_lowest === "number") {
+        hotel.nightlyLowestExtracted = nightly.extracted_lowest;
+      }
+    }
+    const total = item.total_rate;
+    if (total && typeof total === "object") {
+      if (total.lowest) hotel.totalLowest = total.lowest;
+      if (typeof total.extracted_lowest === "number") {
+        hotel.totalLowestExtracted = total.extracted_lowest;
+      }
+    }
+    if (Array.isArray(item.amenities)) {
+      const kept = item.amenities
+        .filter((a): a is string => typeof a === "string")
+        .slice(0, MAX_AMENITIES);
+      if (kept.length > 0) hotel.amenities = kept;
+    }
+    const firstImageThumbnail =
+      Array.isArray(item.images)
+        ? item.images.find(
+            (img) =>
+              img && typeof img === "object" && typeof img.thumbnail === "string",
+          )?.thumbnail
+        : undefined;
+    if (item.thumbnail) {
+      hotel.thumbnail = item.thumbnail;
+    } else if (firstImageThumbnail) {
+      hotel.thumbnail = firstImageThumbnail;
+    }
+    const gps = item.gps_coordinates;
+    if (
+      gps &&
+      typeof gps === "object" &&
+      typeof gps.latitude === "number" &&
+      typeof gps.longitude === "number"
+    ) {
+      hotel.gpsCoordinates = {
+        latitude: gps.latitude,
+        longitude: gps.longitude,
+      };
+    }
+    if (item.check_in_time) hotel.checkInTime = item.check_in_time;
+    if (item.check_out_time) hotel.checkOutTime = item.check_out_time;
+    if (typeof item.free_cancellation === "boolean") {
+      hotel.freeCancellation = item.free_cancellation;
+    }
+    return hotel;
+  });
+
+  return {
+    engine: "google_hotels",
+    query,
+    checkIn,
+    checkOut,
+    currency,
     resultCount: results.length,
     results,
   };

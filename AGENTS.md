@@ -42,7 +42,13 @@ availability, feasibility) should eventually be backed by evidence from live dat
 - **Phase 1 (completed):** Technical Architecture & Environment Configuration.
 - **Phase 2 Step 1 (completed):** Secure SerpApi Search Engine API integration
   and live connectivity test (Google Search gateway + test endpoint).
-- **Phase 2 Step 2 (next):** second SerpApi engine and deeper live-data use.
+- **Phase 2 Step 2 (completed):** Google Maps search support, live-verified
+  (gateway `searchMaps` + maps test endpoint).
+- **Phase 2 Step 3 (completed):** Google Hotels support, live-verified
+  (gateway `searchHotels` + hotels test endpoint).
+- **Phase 2 (completed):** Secure SerpApi integration, live-verified across
+  Google Search, Google Maps, and Google Hotels.
+- **Phase 3 (next):** Basic GhoomAI interaction with live SerpApi data.
 - Application development is now permitted, strictly according to the phased
   plan in Section 3.
 - Do **not** build the complete application yet — implement only what the
@@ -55,8 +61,8 @@ Build GhoomAI incrementally. Do not skip directly to later phases without
 validating earlier phases.
 
 - **Phase 1 (completed):** Project architecture and configuration.
-- **Phase 2 (in progress — Step 1 completed, Step 2 next):** Secure SerpApi integration and a minimal connectivity test.
-- **Phase 3:** Basic GhoomAI interaction with live SerpApi data.
+- **Phase 2 (completed):** Secure SerpApi integration and a minimal connectivity test.
+- **Phase 3 (next):** Basic GhoomAI interaction with live SerpApi data.
 - **Phase 4:** Trip planning.
 - **Phase 5:** RealityCheck verification engine.
 - **Phase 6:** Dynamic itinerary rescheduling and live trip functionality.

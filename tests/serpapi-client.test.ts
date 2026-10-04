@@ -16,7 +16,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SerpApiClient } from "../src/server/services/serpapi/client";
-import { normalizeMapsPlaces } from "../src/server/services/serpapi/types";
+import {
+  normalizeHotels,
+  normalizeMapsPlaces,
+} from "../src/server/services/serpapi/types";
 import {
   ConfigurationError,
   UpstreamError,
@@ -364,5 +367,298 @@ describe("SerpApiClient safe upstream diagnostics", () => {
     const details = (failure as UpstreamError).details;
     expect(details?.providerError).toContain("[REDACTED]");
     expect(details?.providerError).not.toContain(MOCK_KEY);
+  });
+});
+
+function isoPlusDays(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+const HOTEL_CHECK_IN = isoPlusDays(30);
+const HOTEL_CHECK_OUT = isoPlusDays(33);
+
+function validHotelInput() {
+  return {
+    query: "hotels in Jaipur",
+    checkIn: HOTEL_CHECK_IN,
+    checkOut: HOTEL_CHECK_OUT,
+  };
+}
+
+describe("SerpApiClient Google Hotels support", () => {
+  it("accepts the google_hotels engine with required date params", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ properties: [] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const result = await client.searchHotels(validHotelInput());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("engine=google_hotels");
+    expect(url).toContain(`check_in_date=${HOTEL_CHECK_IN}`);
+    expect(url).toContain(`check_out_date=${HOTEL_CHECK_OUT}`);
+    expect(url).not.toMatch(/(?:^|[?&])type=/);
+    expect(result.engine).toBe("google_hotels");
+    expect(result.query).toBe("hotels in Jaipur");
+    expect(result.checkIn).toBe(HOTEL_CHECK_IN);
+    expect(result.checkOut).toBe(HOTEL_CHECK_OUT);
+    expect(result.currency).toBe("INR");
+    expect(result.resultCount).toBe(0);
+    expect(result.results).toEqual([]);
+  });
+
+  it("passes valid optional parameters correctly", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ properties: [] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    await client.searchHotels({
+      ...validHotelInput(),
+      adults: 3,
+      children: 2,
+      childrenAges: [5, 8],
+      currency: "USD",
+      language: "en",
+      country: "in",
+    });
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("adults=3");
+    expect(url).toContain("children=2");
+    expect(url).toContain("children_ages=5%2C8");
+    expect(url).toContain("currency=USD");
+    expect(url).toContain("hl=en");
+    expect(url).toContain("gl=in");
+  });
+
+  it("rejects an invalid date format before any request", async () => {
+    setKey(MOCK_KEY);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const client = new SerpApiClient();
+    await expect(
+      client.searchHotels({
+        ...validHotelInput(),
+        checkIn: "30-10-2026",
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects impossible calendar dates before any request", async () => {
+    setKey(MOCK_KEY);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const client = new SerpApiClient();
+    await expect(
+      client.searchHotels({
+        ...validHotelInput(),
+        checkIn: "2026-02-31",
+        checkOut: isoPlusDays(60),
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects checkout on or before check-in", async () => {
+    setKey(MOCK_KEY);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const client = new SerpApiClient();
+    await expect(
+      client.searchHotels({
+        ...validHotelInput(),
+        checkOut: HOTEL_CHECK_IN,
+      }),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      client.searchHotels({
+        query: "hotels in Jaipur",
+        checkIn: HOTEL_CHECK_OUT,
+        checkOut: HOTEL_CHECK_IN,
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid/empty query before any request", async () => {
+    setKey(MOCK_KEY);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const client = new SerpApiClient();
+    await expect(
+      client.searchHotels({ ...validHotelInput(), query: "" }),
+    ).rejects.toThrow(ValidationError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects children/children_ages mismatch", async () => {
+    setKey(MOCK_KEY);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const client = new SerpApiClient();
+    await expect(
+      client.searchHotels({
+        ...validHotelInput(),
+        children: 2,
+        childrenAges: [5],
+      }),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      client.searchHotels({
+        ...validHotelInput(),
+        children: 0,
+        childrenAges: [5],
+      }),
+    ).rejects.toThrow(ValidationError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("maps hotels transport failures safely without leaking the key", async () => {
+    setKey(MOCK_KEY);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+    );
+    const client = new SerpApiClient();
+    const failure = await client
+      .searchHotels(validHotelInput())
+      .catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as Error).message).toBe(
+      "Search provider is unreachable.",
+    );
+    expect((failure as Error).message).not.toContain(MOCK_KEY);
+  });
+
+  it("redacts the key from hotels upstream diagnostics", async () => {
+    setKey(MOCK_KEY);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ error: `bad dates for key ${MOCK_KEY} end` }),
+          { status: 400 },
+        ),
+      ),
+    );
+    const client = new SerpApiClient();
+    const failure = await client
+      .searchHotels(validHotelInput())
+      .catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    const details = (failure as UpstreamError).details;
+    expect(details?.httpStatus).toBe(400);
+    expect(details?.providerError).toContain("[REDACTED]");
+    expect(details?.providerError).not.toContain(MOCK_KEY);
+  });
+});
+
+describe("normalizeHotels (synthetic shape probes — NOT live data)", () => {
+  it("normalizes a representative complete synthetic property", () => {
+    const out = normalizeHotels(
+      "hotels in Jaipur",
+      HOTEL_CHECK_IN,
+      HOTEL_CHECK_OUT,
+      "INR",
+      {
+        properties: [
+          {
+            name: "Synthetic Test Hotel",
+            type: "hotel",
+            property_token: "ChoQsyNthetic000",
+            overall_rating: 4.6,
+            reviews: 2310,
+            location_rating: 4.8,
+            rate_per_night: {
+              lowest: "₹5,200",
+              extracted_lowest: 5200,
+            },
+            total_rate: {
+              lowest: "₹15,600",
+              extracted_lowest: 15600,
+            },
+            amenities: ["Free Wi-Fi", "Pool", "Spa"],
+            images: [{ thumbnail: "https://example.invalid/hotel.jpg" }],
+            gps_coordinates: { latitude: 26.9, longitude: 75.8 },
+            check_in_time: "2:00 PM",
+            check_out_time: "12:00 PM",
+            free_cancellation: true,
+          },
+        ],
+      },
+    );
+    expect(out.engine).toBe("google_hotels");
+    expect(out.resultCount).toBe(1);
+    expect(out.currency).toBe("INR");
+    const [hotel] = out.results;
+    expect(hotel.name).toBe("Synthetic Test Hotel");
+    expect(hotel.propertyToken).toBe("ChoQsyNthetic000");
+    expect(hotel.propertyType).toBe("hotel");
+    expect(hotel.overallRating).toBe(4.6);
+    expect(hotel.reviews).toBe(2310);
+    expect(hotel.locationRating).toBe(4.8);
+    expect(hotel.nightlyLowest).toBe("₹5,200");
+    expect(hotel.nightlyLowestExtracted).toBe(5200);
+    expect(hotel.totalLowest).toBe("₹15,600");
+    expect(hotel.totalLowestExtracted).toBe(15600);
+    expect(hotel.amenities).toEqual(["Free Wi-Fi", "Pool", "Spa"]);
+    expect(hotel.thumbnail).toBe("https://example.invalid/hotel.jpg");
+    expect(hotel.gpsCoordinates).toEqual({ latitude: 26.9, longitude: 75.8 });
+    expect(hotel.checkInTime).toBe("2:00 PM");
+    expect(hotel.checkOutTime).toBe("12:00 PM");
+    expect(hotel.freeCancellation).toBe(true);
+  });
+
+  it("handles missing optional fields", () => {
+    const out = normalizeHotels(
+      "hotels in Jaipur",
+      HOTEL_CHECK_IN,
+      HOTEL_CHECK_OUT,
+      "INR",
+      { properties: [{ name: "Synthetic Bare Hotel" }] },
+    );
+    expect(out.resultCount).toBe(1);
+    expect(out.results[0]).toMatchObject({
+      position: 1,
+      name: "Synthetic Bare Hotel",
+    });
+    expect(out.results[0].overallRating).toBeUndefined();
+    expect(out.results[0].nightlyLowestExtracted).toBeUndefined();
+    expect(out.results[0].freeCancellation).toBeUndefined();
+  });
+
+  it("does not crash on malformed optional nested data", () => {
+    const malformed = {
+      properties: [
+        {
+          name: "Synthetic Odd Hotel",
+          rate_per_night: "cheap",
+          total_rate: 42,
+          amenities: "pool",
+          images: "not-an-array",
+          gps_coordinates: { latitude: "north" },
+          free_cancellation: "yes",
+        },
+      ],
+    } as unknown as Parameters<typeof normalizeHotels>[4];
+    const out = normalizeHotels(
+      "hotels in Jaipur",
+      HOTEL_CHECK_IN,
+      HOTEL_CHECK_OUT,
+      "INR",
+      malformed,
+    );
+    expect(out.resultCount).toBe(1);
+    expect(out.results[0].name).toBe("Synthetic Odd Hotel");
+    expect(out.results[0].nightlyLowest).toBeUndefined();
+    expect(out.results[0].totalLowestExtracted).toBeUndefined();
+    expect(out.results[0].amenities).toBeUndefined();
+    expect(out.results[0].thumbnail).toBeUndefined();
+    expect(out.results[0].gpsCoordinates).toBeUndefined();
+    expect(out.results[0].freeCancellation).toBeUndefined();
   });
 });
