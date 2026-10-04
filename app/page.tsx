@@ -18,6 +18,13 @@ export default function HomePage() {
 
       <AskBox />
 
+      <p className="text-sm text-neutral-600">
+        Planning a full trip?{" "}
+        <a href="/plan" className="font-medium text-sky-700 hover:underline">
+          Build a multi-day itinerary
+        </a>
+      </p>
+
       <footer className="mt-auto pt-8 text-xs text-neutral-400">
         Live travel data via SerpApi · Verified answers arrive with
         RealityCheck in a later phase.
