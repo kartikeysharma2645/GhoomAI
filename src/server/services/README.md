@@ -42,6 +42,22 @@
 - Intentionally deferred: pagination (`next_page_token`) and
   `property_token` detail lookup (later phases).
 
+## Phase 3 agent layer (deterministic, no LLM)
+
+Flow: user message → `resolveIntent()` → `TravelIntent` → responder →
+one `SerpApiClient` method → normalized evidence → `GhoomAIResponse`.
+
+- `src/server/agent/intent.ts` — pure keyword router (`find_hotels`,
+  `discover_places`, `general_search`), narrow destination extraction
+  (never invents one), hotel default dates (+30/+33, `datesSource`).
+- `src/server/agent/responder.ts` — executes a validated intent via the
+  existing gateway methods only; shapes summary + evidence items.
+- `POST /api/ask` — thin route: validate → resolve → execute → respond.
+  The client can never select an engine or supply a key.
+- The router is intentionally swappable: a future LLM-based classifier can
+  replace `resolveIntent()` as long as it returns `TravelIntent` — the
+  route, gateway, and UI stay unchanged.
+
 ## Planned services
 
 | Service               | Phase | Notes                                              |

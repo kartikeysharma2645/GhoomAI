@@ -220,7 +220,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * Parses a YYYY-MM-DD string into components, or null when it is not a real
  * calendar date (e.g. 2026-02-31). Round-trips through UTC to catch overflow.
  */
-function parseIsoCalendarDate(value: string): {
+export function parseIsoCalendarDate(value: string): {
   y: number;
   m: number;
   d: number;
