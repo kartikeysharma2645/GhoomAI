@@ -64,7 +64,7 @@ validating earlier phases.
 - **Phase 1 (completed):** Project architecture and configuration.
 - **Phase 2 (completed):** Secure SerpApi integration and a minimal connectivity test.
 - **Phase 3 (in progress):** Basic GhoomAI interaction with live SerpApi data.
-- **Phase 4 (in progress — Step 1 completed):** Trip planning foundation (requirements, research, deterministic builder, plan API + UI).
+- **Phase 4 (in progress — Step 2 completed):** Trip planning foundation + enhanced research and itinerary quality.
 - **Phase 5:** RealityCheck verification engine.
 - **Phase 6:** Dynamic itinerary rescheduling and live trip functionality.
 - **Phase 7:** Landmark/image intelligence and travel companion features.

@@ -11,13 +11,16 @@ import type {
   TripDay,
   TripPlan,
 } from "../trips/plan";
+import { scorePlace } from "./scoring";
 
 /**
- * Phase 4 Step 1 deterministic itinerary builder.
+ * Phase 4 Step 2 deterministic itinerary builder.
  *
  * PURE function: no network, no fetch, no client, no environment access.
  * Assembles a TripPlan from validated requirements + normalized research
- * candidates. Never invents places, prices, or facts.
+ * candidates. Never invents places, prices, or facts. Ordering is guided
+ * by score, category diversity, and weak slot-suitability signals — never
+ * presented as route optimization.
  */
 
 export interface BuilderInput {
@@ -30,6 +33,16 @@ export interface BuilderInput {
   stayWindow: { checkIn: string; checkOut: string; verified: boolean };
   observedAt: string;
   researchWarnings: string[];
+  destinationContext?: {
+    summary: string[];
+    sources: Array<{ title: string; link: string }>;
+  };
+  hotelsQuery?: string;
+  /**
+   * Resolves the research query that produced a place (for evidence).
+   * Absent in unit tests — evidence query is then omitted.
+   */
+  queryForPlace?: (place: NormalizedMapsPlace) => string | undefined;
 }
 
 export const ROUTE_WARNING =
@@ -58,31 +71,12 @@ const DURATION_KEYWORDS: Array<{ test: RegExp; minutes: number }> = [
 
 const DEFAULT_DURATION_MINUTES = 120;
 
-/** Interest keyword stems matched against place title/type text. */
-const INTEREST_MATCHERS: Record<string, RegExp> = {
-  history: /fort|palace|museum|heritage|temple|monument|haveli|tomb/i,
-  photography: /viewpoint|sunset|lake|palace|fort|garden|tower/i,
-  food: /restaurant|cafe|food|cuisine|market|dhaba|eatery/i,
-  nature: /park|garden|lake|zoo|sanctuary|bird/i,
-  shopping: /market|bazaar|mall|souvenir|handicraft|textile/i,
-  nightlife: /bar|club|night|rooftop|lounge/i,
-};
+/** Weak slot-suitability signals: outdoor/view places prefer mornings. */
+const OUTDOOR_RE = /fort|palace|viewpoint|lake|garden|park|tower|sunset/i;
+const INDOOR_RE = /museum|gallery|market|mall|bazaar/i;
 
 function placeText(place: NormalizedMapsPlace): string {
   return `${place.title ?? ""} ${place.placeType ?? ""} ${(place.placeTypes ?? []).join(" ")}`;
-}
-
-function interestScore(
-  place: NormalizedMapsPlace,
-  interests: string[],
-): number {
-  const text = placeText(place);
-  let bonus = 0;
-  for (const interest of interests) {
-    const matcher = INTEREST_MATCHERS[interest];
-    if (matcher && matcher.test(text)) bonus += 1.5;
-  }
-  return (place.rating ?? 0) + bonus;
 }
 
 function estimateDuration(place: NormalizedMapsPlace): number {
@@ -93,9 +87,23 @@ function estimateDuration(place: NormalizedMapsPlace): number {
   return DEFAULT_DURATION_MINUTES;
 }
 
+/** +1 outdoor, -1 indoor/market, 0 unknown — a preference, not a fact. */
+function morningSuitability(place: NormalizedMapsPlace): number {
+  const text = placeText(place);
+  if (OUTDOOR_RE.test(text) && !INDOOR_RE.test(text)) return 1;
+  if (INDOOR_RE.test(text) && !OUTDOOR_RE.test(text)) return -1;
+  return 0;
+}
+
+function primaryType(place: NormalizedMapsPlace): string {
+  return (place.placeType ?? place.placeTypes?.[0] ?? "").toLowerCase();
+}
+
 function mapsEvidence(
   place: NormalizedMapsPlace,
   observedAt: string,
+  purpose: "attraction" | "meal",
+  query?: string,
 ): Evidence {
   return {
     engine: "google_maps",
@@ -105,6 +113,8 @@ function mapsEvidence(
       place.links && typeof place.links.website === "string"
         ? place.links.website
         : undefined,
+    query,
+    purpose,
     facts: {
       rating: place.rating,
       reviews: place.reviews,
@@ -179,6 +189,12 @@ function addDaysIso(startDate: string, offset: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+interface ScheduledPick {
+  place: NormalizedMapsPlace;
+  reasons: string[];
+  diversityFallback: boolean;
+}
+
 export function buildTripPlan(input: BuilderInput): TripPlan {
   const {
     requirements,
@@ -215,6 +231,9 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
           engine: "google_hotels",
           observedAt,
           propertyToken: pick.hotel.propertyToken,
+          query: input.hotelsQuery,
+          purpose: "stay_selection",
+          currency,
           facts: {
             rating: pick.hotel.overallRating,
             reviews: pick.hotel.reviews,
@@ -232,65 +251,165 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
 
   const pricesVerified = stayWindow.verified && stayTotal !== undefined;
 
-  // ---- Attraction pool: prefer rated, rank by interests ----
+  // ---- Scored selection with per-day category diversity ----
   const usable = input.attractions.filter(
     (p) => p.title && p.title.trim().length > 0,
   );
-  const preferred = usable.filter((p) => (p.rating ?? 0) >= 4.0);
-  const fallback = usable.filter((p) => (p.rating ?? 0) < 4.0);
-  const rank = (pool: NormalizedMapsPlace[]) =>
-    [...pool].sort(
-      (a, b) =>
-        interestScore(b, requirements.interests) -
-        interestScore(a, requirements.interests),
-    );
-  const ranked = [...rank(preferred), ...rank(fallback)].slice(0, 12);
-
   const slotsPerDay = TIMED_SLOTS_PER_PACE[requirements.pace];
   const capacity = dayCount * slotsPerDay;
-  const scheduled = ranked.slice(0, capacity);
-  if (scheduled.length < capacity) {
+
+  const scheduledKeys = new Set<string>();
+  const keyOf = (p: NormalizedMapsPlace, i: number) =>
+    p.placeId ?? p.title ?? `index:${i}`;
+  const dayPicks: ScheduledPick[][] = Array.from(
+    { length: dayCount },
+    () => [],
+  );
+  const remaining = usable.map((place, index) => ({ place, index }));
+  let diversityFallback = false;
+
+  outer: for (let round = 0; round < slotsPerDay; round += 1) {
+    for (let day = 0; day < dayCount; day += 1) {
+      if (remaining.length === 0) break outer;
+      const typesToday = new Set(
+        dayPicks[day]?.map((s) => primaryType(s.place)) ?? [],
+      );
+      const scored = remaining.map(({ place, index }) => ({
+        place,
+        index,
+        scored: scorePlace(place, index, {
+          interests: requirements.interests,
+          scheduledTypesToday: typesToday,
+          scheduledKeys,
+        }),
+      }));
+      scored.sort((a, b) => b.scored.score - a.scored.score || a.index - b.index);
+      const best = scored[0];
+      if (!best) break outer;
+      if (
+        best.scored.reasons.includes("same category already scheduled today")
+      ) {
+        diversityFallback = true;
+      }
+      scheduledKeys.add(keyOf(best.place, best.index));
+      dayPicks[day]?.push({
+        place: best.place,
+        reasons: best.scored.reasons,
+        diversityFallback: best.scored.reasons.includes(
+          "same category already scheduled today",
+        ),
+      });
+      remaining.splice(
+        remaining.findIndex((r) => r.index === best.index),
+        1,
+      );
+    }
+  }
+
+  const scheduledCount = dayPicks.reduce((n, d) => n + (d?.length ?? 0), 0);
+  if (scheduledCount < capacity) {
     warnings.push(
-      `Only ${scheduled.length} rated place(s) were found for ${capacity} planned slot(s); ` +
+      `Only ${scheduledCount} rated place(s) were found for ${capacity} planned slot(s); ` +
         `days are shorter rather than filled with unverified options.`,
     );
   }
+  if (diversityFallback) {
+    warnings.push(
+      "Limited variety on at least one day: the same place category appears twice because alternatives were unavailable.",
+    );
+  }
 
-  // ---- Day assembly (round-robin spreads top picks across days) ----
+  // Interest coverage: warn only for explicitly requested interests with no match.
+  // Food is covered by live restaurant lunch picks, not attraction slots.
+  for (const interest of requirements.interests) {
+    if (interest === "food" && input.food.length > 0) continue;
+    const matched = dayPicks.some((day) =>
+      day?.some((s) => s.reasons.some((r) => r.includes(interest))),
+    );
+    if (!matched && scheduledCount > 0) {
+      warnings.push(
+        `No highly-rated options found for the "${interest}" interest; days lean on other interests.`,
+      );
+    }
+  }
+
+  // Opening-hours availability.
+  const timedPlaces = dayPicks.flatMap((d) => d ?? []).map((s) => s.place);
+  if (
+    timedPlaces.length > 0 &&
+    timedPlaces.filter((p) => !p.hours && !p.openState).length * 2 >
+      timedPlaces.length
+  ) {
+    warnings.push(
+      "Opening hours are unavailable for some scheduled places; verify before visiting.",
+    );
+  }
+
+  // ---- Day assembly ----
+  const queryForPlace = input.queryForPlace;
   const days: TripDay[] = [];
   for (let day = 1; day <= dayCount; day += 1) {
+    const picks = [...(dayPicks[day - 1] ?? [])];
+    // Suitability ordering: outdoor-leaning places take earlier slots.
+    // Stable for ties, so score order wins among equals.
+    picks.sort(
+      (a, b) => morningSuitability(b.place) - morningSuitability(a.place),
+    );
+
     const items: ItineraryItem[] = [];
-    for (let slot = 0; slot < slotsPerDay; slot += 1) {
-      const place = scheduled[(day - 1) + slot * dayCount];
-      if (!place) break;
+    picks.forEach((pick, slot) => {
       const window = TIME_WINDOWS[slot];
+      if (!window) return;
+      const reasons = [...pick.reasons];
+      const suitability = morningSuitability(pick.place);
+      if (suitability > 0 && slot === 0) {
+        reasons.push("morning slot for an outdoor visit");
+      } else if (suitability < 0 && slot > 0) {
+        reasons.push("afternoon slot for an indoor visit");
+      }
+      if (pick.diversityFallback) {
+        reasons.push("limited variety: repeated category today");
+      }
       items.push({
         id: `d${day}-attraction-${slot + 1}`,
         kind: "attraction",
-        title: place.title as string,
+        title: pick.place.title as string,
         startTime: window.start,
         endTime: window.end,
-        estimatedDurationMinutes: estimateDuration(place),
+        estimatedDurationMinutes: estimateDuration(pick.place),
         place: {
-          name: place.title as string,
-          address: place.address,
-          rating: place.rating,
-          ...(place.gpsCoordinates
+          name: pick.place.title as string,
+          address: pick.place.address,
+          rating: pick.place.rating,
+          ...(pick.place.gpsCoordinates
             ? {
                 gps: {
-                  latitude: place.gpsCoordinates.latitude,
-                  longitude: place.gpsCoordinates.longitude,
+                  latitude: pick.place.gpsCoordinates.latitude,
+                  longitude: pick.place.gpsCoordinates.longitude,
                 },
               }
             : {}),
         },
-        evidence: [mapsEvidence(place, observedAt)],
-        notes: place.openState ? `Reported status: ${place.openState}.` : undefined,
+        evidence: [
+          mapsEvidence(
+            pick.place,
+            observedAt,
+            "attraction",
+            queryForPlace?.(pick.place),
+          ),
+        ],
+        selectionReasons: reasons.slice(0, 6),
+        notes: pick.place.openState
+          ? `Reported status: ${pick.place.openState}.`
+          : undefined,
       });
-    }
+    });
 
-    // Lunch: reference a live restaurant pick when available, else a plain break.
-    const lunchPick = input.food[day - 1] ?? input.food[0];
+    // Lunch cycles deterministically through live restaurant picks.
+    const lunchPick =
+      input.food.length > 0
+        ? input.food[(day - 1) % input.food.length]
+        : undefined;
     if (lunchPick && lunchPick.title) {
       items.push({
         id: `d${day}-meal-1`,
@@ -303,7 +422,15 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
           address: lunchPick.address,
           rating: lunchPick.rating,
         },
-        evidence: [mapsEvidence(lunchPick, observedAt)],
+        evidence: [
+          mapsEvidence(
+            lunchPick,
+            observedAt,
+            "meal",
+            queryForPlace?.(lunchPick),
+          ),
+        ],
+        selectionReasons: ["live restaurant candidate"],
         notes: "Pick from live restaurant options; hours vary by venue.",
       });
     } else {
@@ -379,5 +506,6 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
     days,
     totals,
     pricesVerified,
+    ...(input.destinationContext ? { destinationContext: input.destinationContext } : {}),
   };
 }

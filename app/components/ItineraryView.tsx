@@ -10,6 +10,9 @@ export interface PlanEvidence {
   placeId?: string;
   propertyToken?: string;
   sourceUrl?: string;
+  query?: string;
+  purpose?: string;
+  currency?: string;
   facts: {
     rating?: number;
     reviews?: number;
@@ -29,6 +32,7 @@ export interface PlanItem {
   evidence: PlanEvidence[];
   cost?: { label: string; amount?: number; currency: string; basis: string };
   notes?: string;
+  selectionReasons?: string[];
 }
 
 export interface PlanDay {
@@ -55,6 +59,10 @@ export interface TripPlanData {
     total?: { label: string; amount?: number; currency: string; basis: string };
   };
   days: PlanDay[];
+  destinationContext?: {
+    summary: string[];
+    sources: Array<{ title: string; link: string }>;
+  };
   totals: {
     lines: Array<{
       label: string;
@@ -92,6 +100,13 @@ const VERDICT_LABEL: Record<TripPlanData["budgetVerdict"], string> = {
   unknown: "Budget unknown",
 };
 
+const PURPOSE_LABEL: Record<string, string> = {
+  stay_selection: "stay research",
+  attraction: "attraction research",
+  meal: "restaurant research",
+  context: "background research",
+};
+
 function EvidenceLine({ evidence }: { evidence: PlanEvidence[] }) {
   if (evidence.length === 0) return null;
   const sources = evidence.map((e) => {
@@ -99,6 +114,9 @@ function EvidenceLine({ evidence }: { evidence: PlanEvidence[] }) {
     if (e.engine === "google_hotels") bits.push("Google Hotels");
     else if (e.engine === "google_maps") bits.push("Google Maps");
     else bits.push("Google Search");
+    if (e.purpose && PURPOSE_LABEL[e.purpose]) {
+      bits.push(PURPOSE_LABEL[e.purpose]);
+    }
     if (typeof e.facts.rating === "number") bits.push(`rated ${e.facts.rating}`);
     return bits.join(" · ");
   });
@@ -164,6 +182,38 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
         )}
       </div>
 
+      {plan.destinationContext &&
+        plan.destinationContext.summary.length > 0 && (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-medium text-neutral-700">
+              About {plan.destination}
+            </h3>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-600">
+              {plan.destinationContext.summary.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ul>
+            {plan.destinationContext.sources.length > 0 && (
+              <p className="mt-2 text-xs text-neutral-400">
+                Sources:{" "}
+                {plan.destinationContext.sources.map((s, i) => (
+                  <span key={s.link}>
+                    {i > 0 && " · "}
+                    <a
+                      href={s.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:underline"
+                    >
+                      {s.title}
+                    </a>
+                  </span>
+                ))}
+              </p>
+            )}
+          </div>
+        )}
+
       {plan.days.map((day) => (
         <div
           key={day.dayNumber}
@@ -209,6 +259,11 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
                 )}
                 {item.notes && (
                   <p className="text-sm text-neutral-600">{item.notes}</p>
+                )}
+                {item.selectionReasons && item.selectionReasons.length > 0 && (
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Why here: {item.selectionReasons.slice(0, 3).join(" · ")}
+                  </p>
                 )}
                 <EvidenceLine evidence={item.evidence} />
               </li>

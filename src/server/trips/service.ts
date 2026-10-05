@@ -1,5 +1,7 @@
 import { ValidationError } from "../../lib/errors";
 import { SerpApiClient } from "../services/serpapi/client";
+import type { NormalizedMapsPlace } from "../services/serpapi/types";
+import { researchDestination } from "../research/destination";
 import { researchHotels } from "../research/hotels";
 import { researchPlaces } from "../research/places";
 import { buildTripPlan } from "../planning/builder";
@@ -91,15 +93,49 @@ export async function planTrip(
 
   const hotels =
     hotelsSettled.status === "fulfilled" ? hotelsSettled.value.hotels : [];
-  const places =
+  const hotelsQuery =
+    hotelsSettled.status === "fulfilled" ? hotelsSettled.value.query : undefined;
+  const placePools =
     placesSettled.status === "fulfilled"
-      ? [
-          ...placesSettled.value.attractions,
-          ...placesSettled.value.interestExtra,
-        ]
-      : [];
-  const food =
-    placesSettled.status === "fulfilled" ? placesSettled.value.food : [];
+      ? placesSettled.value
+      : {
+          attractions: [],
+          food: [],
+          interestExtra: [],
+          queries: { attractions: "" },
+        };
+  const places = [...placePools.attractions, ...placePools.interestExtra];
+  const food = placePools.food;
+
+  // Destination context is conditional: thin pools or broad interests only.
+  // Its failure never destroys an otherwise valid plan.
+  const usableCount = places.filter(
+    (p) => p.title && p.title.trim().length > 0,
+  ).length;
+  const wantsContext =
+    usableCount < 4 || requirements.interests.length >= 3;
+  let destinationContext:
+    | { summary: string[]; sources: Array<{ title: string; link: string }> }
+    | undefined;
+  if (wantsContext) {
+    try {
+      const ctx = await researchDestination(client, requirements.destination);
+      destinationContext = { summary: ctx.summary, sources: ctx.sources };
+    } catch {
+      researchWarnings.push(
+        "Destination background research failed; the plan has no destination summary.",
+      );
+    }
+  }
+
+  // Evidence query origins, by object identity within this request.
+  const origin = new Map<NormalizedMapsPlace, string>();
+  if (placesSettled.status === "fulfilled") {
+    const { attractions, food: foodPool, interestExtra, queries } = placePools;
+    for (const p of attractions) origin.set(p, queries.attractions);
+    if (queries.food) for (const p of foodPool) origin.set(p, queries.food);
+    if (queries.interest) for (const p of interestExtra) origin.set(p, queries.interest);
+  }
 
   const plan = buildTripPlan({
     requirements,
@@ -111,6 +147,9 @@ export async function planTrip(
     stayWindow,
     observedAt,
     researchWarnings,
+    destinationContext,
+    hotelsQuery,
+    queryForPlace: (place) => origin.get(place),
   });
 
   return { status: "ready", plan };

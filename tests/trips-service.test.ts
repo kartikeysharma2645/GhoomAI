@@ -82,8 +82,16 @@ describe("trip service", () => {
 
   it("queries restaurants only when food is requested", async () => {
     const withoutFood = fakeClient();
-    await planTrip(request(), asClient(withoutFood), NOW);
-    expect(withoutFood.searchMaps).toHaveBeenCalledTimes(1);
+    await planTrip(
+      { ...request(), interests: ["history"] },
+      asClient(withoutFood),
+      NOW,
+    );
+    const historyQueries = withoutFood.searchMaps.mock.calls.map(
+      (c) => (c[0] as { query: string }).query,
+    );
+    expect(historyQueries.some((q) => q.includes("restaurants"))).toBe(false);
+    expect(historyQueries).toContain("tourist attractions in Jaipur");
 
     const withFood = fakeClient();
     await planTrip(
@@ -118,5 +126,75 @@ describe("trip service", () => {
     await expect(planTrip(request(), asClient(fake), NOW)).rejects.toThrow(
       UpstreamError,
     );
+  });
+});
+
+describe("trip service destination context (Step 2)", () => {
+  function richMaps() {
+    return Array.from({ length: 5 }, (_, i) => ({
+      position: i + 1,
+      title: `Synthetic Place ${i + 1}`,
+      rating: 4.5,
+    }));
+  }
+
+  it("threads destination context when the pool is thin", async () => {
+    const fake = fakeClient();
+    fake.search.mockResolvedValue({
+      engine: "google",
+      query: "Jaipur travel guide",
+      resultCount: 1,
+      results: [
+        {
+          position: 1,
+          title: "Synthetic Guide",
+          link: "https://example.invalid/guide",
+          snippet: "A synthetic destination summary.",
+        },
+      ],
+    });
+    const result = await planTrip(request(), asClient(fake), NOW);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(fake.search).toHaveBeenCalledTimes(1);
+    expect(result.plan.destinationContext?.summary).toEqual([
+      "A synthetic destination summary.",
+    ]);
+    expect(result.plan.destinationContext?.sources).toEqual([
+      { title: "Synthetic Guide", link: "https://example.invalid/guide" },
+    ]);
+  });
+
+  it("skips destination search when the pool is rich", async () => {
+    const fake = fakeClient();
+    fake.searchMaps.mockResolvedValue({
+      engine: "google_maps",
+      query: "q",
+      resultCount: 5,
+      results: richMaps(),
+    });
+    const result = await planTrip(
+      { ...request(), interests: ["history"] },
+      asClient(fake),
+      NOW,
+    );
+    expect(result.status).toBe("ready");
+    expect(fake.search).not.toHaveBeenCalled();
+    if (result.status !== "ready") return;
+    expect(result.plan.destinationContext).toBeUndefined();
+  });
+
+  it("degrades gracefully when destination search fails", async () => {
+    const fake = fakeClient();
+    fake.search.mockRejectedValue(new UpstreamError("down"));
+    const result = await planTrip(request(), asClient(fake), NOW);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.plan.destinationContext).toBeUndefined();
+    expect(
+      result.plan.warnings.some((w) =>
+        w.includes("Destination background research failed"),
+      ),
+    ).toBe(true);
   });
 });

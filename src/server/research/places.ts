@@ -1,13 +1,14 @@
+import { ATTRACTIONS_MAPS_QUERY, FOOD_MAPS_QUERY, INTEREST_MAPS_QUERIES, renderMapsQuery } from "../interests";
 import type { SerpApiClient } from "../services/serpapi/client";
 import type { NormalizedMapsPlace } from "../services/serpapi/types";
 import type { TripRequirements } from "../trips/requirements";
 
 /**
- * Place research: live attraction (and optional food) candidates through
- * the existing gateway. No HTTP here — the injected SerpApiClient owns
- * transport. Only the calls required by the requirements are made:
+ * Place research: live attraction (and optional food/interest) candidates
+ * through the existing gateway. No HTTP here — the injected SerpApiClient
+ * owns transport. Quota-conscious by design:
  * always one attractions query, plus at most one food query and one
- * interest query.
+ * interest query. Only the calls required by the requirements are made.
  */
 
 export interface PlaceResearch {
@@ -15,30 +16,31 @@ export interface PlaceResearch {
   food: NormalizedMapsPlace[];
   interestExtra: NormalizedMapsPlace[];
   interestExtraLabel?: string;
+  queries: {
+    attractions: string;
+    food?: string;
+    interest?: string;
+  };
 }
-
-/** Extra discovery queries keyed by interest. Food is handled separately. */
-const INTEREST_QUERIES: Record<string, string> = {
-  shopping: "markets in",
-  nature: "parks in",
-  nightlife: "nightlife in",
-};
 
 export async function researchPlaces(
   client: SerpApiClient,
   requirements: TripRequirements,
 ): Promise<PlaceResearch> {
   const destination = requirements.destination;
+  const attractionsQuery = renderMapsQuery(ATTRACTIONS_MAPS_QUERY, destination);
 
   const attractions = await client.searchMaps({
-    query: `tourist attractions in ${destination}`,
+    query: attractionsQuery,
     location: destination,
   });
 
   let food: NormalizedMapsPlace[] = [];
+  let foodQuery: string | undefined;
   if (requirements.interests.includes("food")) {
+    foodQuery = renderMapsQuery(FOOD_MAPS_QUERY, destination);
     const foodRes = await client.searchMaps({
-      query: `restaurants in ${destination}`,
+      query: foodQuery,
       location: destination,
     });
     food = foodRes.results;
@@ -46,14 +48,18 @@ export async function researchPlaces(
 
   let interestExtra: NormalizedMapsPlace[] = [];
   let interestExtraLabel: string | undefined;
+  let interestQuery: string | undefined;
   const extraInterest = requirements.interests.find(
-    (i) => i !== "food" && INTEREST_QUERIES[i] !== undefined,
+    (i) => i !== "food" && INTEREST_MAPS_QUERIES[i] !== undefined,
   );
   if (extraInterest) {
-    const label = INTEREST_QUERIES[extraInterest];
     interestExtraLabel = extraInterest;
+    interestQuery = renderMapsQuery(
+      INTEREST_MAPS_QUERIES[extraInterest],
+      destination,
+    );
     const extraRes = await client.searchMaps({
-      query: `${label} ${destination}`,
+      query: interestQuery,
       location: destination,
     });
     interestExtra = extraRes.results;
@@ -64,5 +70,10 @@ export async function researchPlaces(
     food,
     interestExtra,
     interestExtraLabel,
+    queries: {
+      attractions: attractionsQuery,
+      ...(foodQuery ? { food: foodQuery } : {}),
+      ...(interestQuery ? { interest: interestQuery } : {}),
+    },
   };
 }

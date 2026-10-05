@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ValidationError } from "../../lib/errors";
+import { TRIP_INTERESTS } from "../interests";
 import { parseIsoCalendarDate } from "../services/serpapi/types";
 
 /**
@@ -10,15 +11,6 @@ import { parseIsoCalendarDate } from "../services/serpapi/types";
  * `needs_input` result — never silently plans with missing critical data.
  * Pure: no network, no secrets. `now` is injectable for tests.
  */
-
-export const TRIP_INTERESTS = [
-  "history",
-  "food",
-  "photography",
-  "nature",
-  "shopping",
-  "nightlife",
-] as const;
 
 export const TRAVEL_PACES = ["relaxed", "balanced", "packed"] as const;
 

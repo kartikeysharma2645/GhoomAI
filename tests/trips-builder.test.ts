@@ -242,3 +242,116 @@ describe("builder evidence and budget", () => {
     expect(plan.stay).toBeUndefined();
   });
 });
+
+describe("builder diversity and suitability (Step 2)", () => {
+  it("warns when a day repeats a category for lack of alternatives", () => {
+    const plan = buildTripPlan(
+      input({
+        requirements: requirements({
+          startDate: "2026-11-10",
+          endDate: "2026-11-10",
+          durationDays: 1,
+        }),
+        attractions: [
+          place("Synthetic Fort A", 4.8, { placeType: "Fort" }),
+          place("Synthetic Fort B", 4.7, { placeType: "Fort" }),
+        ],
+      }),
+    );
+    const timed = plan.days[0]?.items.filter((i) => i.kind === "attraction");
+    expect(timed).toHaveLength(2);
+    expect(
+      plan.warnings.some((w) => w.includes("Limited variety")),
+    ).toBe(true);
+  });
+
+  it("prefers outdoor places for morning slots", () => {
+    const plan = buildTripPlan(
+      input({
+        requirements: requirements({
+          startDate: "2026-11-10",
+          endDate: "2026-11-10",
+          durationDays: 1,
+        }),
+        attractions: [
+          place("Synthetic Museum", 4.9, { placeType: "Museum" }),
+          place("Synthetic Fort", 4.0, { placeType: "Fort" }),
+        ],
+      }),
+    );
+    const timed = plan.days[0]?.items.filter((i) => i.kind === "attraction");
+    expect(timed?.[0]?.title).toBe("Synthetic Fort");
+    expect(timed?.[0]?.startTime).toBe("09:30");
+    expect(timed?.[1]?.title).toBe("Synthetic Museum");
+  });
+
+  it("cycles lunch picks across days", () => {
+    const plan = buildTripPlan(
+      input({
+        food: [place("Eatery One", 4.3), place("Eatery Two", 4.2)],
+      }),
+    );
+    const lunches = plan.days.map(
+      (d) => d.items.find((i) => i.kind === "meal")?.title,
+    );
+    expect(lunches[0]).toContain("Eatery One");
+    expect(lunches[1]).toContain("Eatery Two");
+    expect(lunches[2]).toContain("Eatery One");
+  });
+
+  it("never schedules the same attraction twice", () => {
+    const pool = Array.from({ length: 4 }, (_, i) =>
+      place(`Synthetic Place ${i + 1}`, 4.5),
+    );
+    const plan = buildTripPlan(input({ attractions: pool }));
+    const titles = plan.days.flatMap((d) =>
+      d.items.filter((i) => i.kind === "attraction").map((i) => i.title),
+    );
+    expect(new Set(titles).size).toBe(titles.length);
+    expect(titles).toHaveLength(4);
+  });
+
+  it("attaches purpose, query, and currency to evidence", () => {
+    const plan = buildTripPlan(
+      input({
+        hotelsQuery: "hotels in Jaipur",
+        queryForPlace: () => "tourist attractions in Jaipur",
+      }),
+    );
+    const attraction = plan.days[0]?.items.find((i) => i.kind === "attraction");
+    expect(attraction?.evidence[0]?.purpose).toBe("attraction");
+    expect(attraction?.evidence[0]?.query).toBe(
+      "tourist attractions in Jaipur",
+    );
+    expect(attraction?.selectionReasons?.length).toBeGreaterThan(0);
+    expect(plan.stay?.evidence.purpose).toBe("stay_selection");
+    expect(plan.stay?.evidence.query).toBe("hotels in Jaipur");
+    expect(plan.stay?.evidence.currency).toBe("INR");
+  });
+
+  it("warns on uncovered interests and missing hours", () => {
+    const plan = buildTripPlan(
+      input({
+        requirements: requirements({ interests: ["nightlife"] }),
+        attractions: [place("Synthetic Fort", 4.6, { placeType: "Fort" })],
+      }),
+    );
+    expect(
+      plan.warnings.some((w) => w.includes('"nightlife"')),
+    ).toBe(true);
+    expect(
+      plan.warnings.some((w) => w.includes("Opening hours are unavailable")),
+    ).toBe(true);
+  });
+
+  it("treats live restaurant picks as food coverage", () => {
+    const plan = buildTripPlan(
+      input({
+        requirements: requirements({ interests: ["food", "nightlife"] }),
+        attractions: [place("Synthetic Fort", 4.6, { placeType: "Fort" })],
+      }),
+    );
+    expect(plan.warnings.some((w) => w.includes('"food"'))).toBe(false);
+    expect(plan.warnings.some((w) => w.includes('"nightlife"'))).toBe(true);
+  });
+});

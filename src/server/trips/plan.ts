@@ -31,12 +31,25 @@ export const costBreakdownSchema = z.object({
 
 export type CostBreakdown = z.infer<typeof costBreakdownSchema>;
 
+export const EVIDENCE_PURPOSES = [
+  "stay_selection",
+  "attraction",
+  "meal",
+  "context",
+] as const;
+
 export const evidenceSchema = z.object({
   engine: z.enum(["google", "google_maps", "google_hotels"]),
   observedAt: z.string(),
   placeId: z.string().optional(),
   propertyToken: z.string().optional(),
   sourceUrl: z.string().optional(),
+  /** The query that produced this evidence (for Phase 5 re-query). */
+  query: z.string().max(300).optional(),
+  /** Why this evidence was collected. */
+  purpose: z.enum(EVIDENCE_PURPOSES).optional(),
+  /** Currency of monetary facts, so extracted numerics stay unambiguous. */
+  currency: z.string().length(3).optional(),
   facts: z.object({
     rating: z.number().optional(),
     reviews: z.number().optional(),
@@ -82,6 +95,8 @@ export const itineraryItemSchema = z.object({
   evidence: z.array(evidenceSchema),
   cost: costLineSchema.optional(),
   notes: z.string().max(1000).optional(),
+  /** Deterministic selection reasons (score drivers, variety notes). */
+  selectionReasons: z.array(z.string().max(200)).max(6).optional(),
 });
 
 export type ItineraryItem = z.infer<typeof itineraryItemSchema>;
@@ -136,6 +151,15 @@ export const tripPlanSchema = z.object({
   totals: costBreakdownSchema,
   /** False when hotel prices could not be verified (e.g. flexible dates). */
   pricesVerified: z.boolean(),
+  /** Destination background (snippets + sources), never itinerary activities. */
+  destinationContext: z
+    .object({
+      summary: z.array(z.string()),
+      sources: z.array(
+        z.object({ title: z.string(), link: z.string() }),
+      ),
+    })
+    .optional(),
 });
 
 export type TripPlan = z.infer<typeof tripPlanSchema>;
