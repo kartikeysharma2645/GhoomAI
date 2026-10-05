@@ -42,9 +42,7 @@
 - Intentionally deferred: pagination (`next_page_token`) and
   `property_token` detail lookup (later phases).
 
-## Phase 3 agent layer (deterministic, no LLM)
-
-Flow: user message → `resolveIntent()` → `TravelIntent` → responder →
+## Phase 3 agent layer (deterministic, no LLM)Flow: user message → `resolveIntent()` → `TravelIntent` → responder →
 one `SerpApiClient` method → normalized evidence → `GhoomAIResponse`.
 
 - `src/server/agent/intent.ts` — pure keyword router (`find_hotels`,
@@ -70,10 +68,30 @@ one `SerpApiClient` method → normalized evidence → `GhoomAIResponse`.
 | HotelsService         | 4+    | Google Hotels via SerpApiService                   |
 | ReviewsService        | 4+    | Google Reviews via SerpApiService                  |
 | TripPlanningService   | 4     | Itinerary assembly (uses services above)           |
-| RealityCheckService   | 5     | Verification engine (uses services above)          |
+| RealityCheckService   | 5     | Step 1 done: `src/server/realitycheck/` verifies TripPlans vs fresh data (no fixing) |          |
 | ReschedulingService   | 6     | Dynamic rescheduling (uses RealityCheckService)    |
 | BookingService        | 6+    | Booking-related flows (uses Flights/HotelsService) |
 | VisionService         | 7     | Landmark/image intelligence (Lens where suitable)  |
+
+## Phase 5 Step 1 RealityCheck (verify only, no fixing)
+
+Flow: TripPlan → `checkTrip()` → per-item fresh gateway re-query →
+deterministic compare → separate `RealityCheckResult`.
+
+- `src/server/realitycheck/checks.ts` — result contracts + capability
+  matrix (supported vs unsupported facts); TripPlan is never mutated.
+- `src/server/realitycheck/compare.ts` — pure fact comparators with named
+  tolerances (rating ±0.3, review drops >20% on bases ≥50, hotel price bands
+  5%/15%); missing/uncomparable data stays neutral, never contradictory.
+- `src/server/realitycheck/queries.ts` — pure deterministic query builders
+  (stable ID first, name fallback) and candidate matchers.
+- `src/server/realitycheck/service.ts` — orchestration: dedupe by
+  propertyToken → placeId → name, batch shared discovery queries (cap 15
+  items), per-item failure isolation. Failures yield UNVERIFIED, never
+  VERIFIED. Significant drift becomes PROBLEM only on a real budget
+  violation; missing IDs without contradictory evidence stay UNVERIFIED.
+- `POST /api/trips/reality-check` — thin route: validate plan → check →
+  respond. No raw provider payloads or keys leave the server.
 
 ## Rules
 
