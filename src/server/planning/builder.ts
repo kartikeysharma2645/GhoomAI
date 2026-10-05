@@ -79,7 +79,7 @@ function placeText(place: NormalizedMapsPlace): string {
   return `${place.title ?? ""} ${place.placeType ?? ""} ${(place.placeTypes ?? []).join(" ")}`;
 }
 
-function estimateDuration(place: NormalizedMapsPlace): number {
+export function estimateDuration(place: NormalizedMapsPlace): number {
   const text = placeText(place);
   for (const { test, minutes } of DURATION_KEYWORDS) {
     if (test.test(text)) return minutes;
@@ -132,7 +132,7 @@ interface StayPick {
 }
 
 /** Picks one anchor stay: best-rated affordable-with-price option first. */
-function pickStay(
+export function pickStay(
   hotels: NormalizedHotel[],
   nights: number,
   budgetAmount: number | undefined,
