@@ -45,3 +45,13 @@ export class ValidationError extends Error {
     this.name = "ValidationError";
   }
 }
+
+/** Thrown when a request conflicts with current server-side state (HTTP 409). */
+export class ConflictError extends Error {
+  readonly code = "CONFLICT";
+
+  constructor(message = "Request conflicts with the current state.") {
+    super(message);
+    this.name = "ConflictError";
+  }
+}

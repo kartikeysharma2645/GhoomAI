@@ -238,7 +238,7 @@ export default function TripForm() {
       {plan && (
         <div className="mt-8">
           <ItineraryView plan={plan} />
-          <RealityCheckSection plan={plan} />
+          <RealityCheckSection plan={plan} onPlanReplaced={setPlan} />
         </div>
       )}
     </div>
