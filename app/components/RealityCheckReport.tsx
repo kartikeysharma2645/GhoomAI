@@ -85,12 +85,19 @@ const STATUS_STYLE: Record<CheckStatus, string> = {
   UNVERIFIED: "bg-neutral-100 text-neutral-600",
 };
 
-const STATUS_LABEL: Record<CheckStatus, string> = {
+export const STATUS_LABEL: Record<CheckStatus, string> = {
   VERIFIED: "Verified",
   NEEDS_ATTENTION: "Needs attention",
   PROBLEM: "Problem",
   UNVERIFIED: "Unverified",
 };
+
+/** Human-readable label for any status string; unknown values pass through. */
+export function statusLabel(status: string): string {
+  return KNOWN_STATUSES.has(status)
+    ? STATUS_LABEL[status as CheckStatus]
+    : status;
+}
 
 const KIND_LABEL: Record<string, string> = {
   attraction: "Visit",

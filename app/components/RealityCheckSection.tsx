@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RealityCheckReport, {
   parseRealityCheckResponse,
+  statusLabel,
   type RealityCheckData,
 } from "./RealityCheckReport";
 import type { TripPlanData } from "./ItineraryView";
@@ -252,7 +253,7 @@ export default function RealityCheckSection({
                   {change.reasons.join(" · ")}
                 </p>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Re-check: {change.recheck.status}
+                  Re-check: {statusLabel(change.recheck.status)}
                 </p>
                 {applyable ? (
                   <button

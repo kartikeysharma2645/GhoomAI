@@ -22,6 +22,22 @@ const PACES = ["relaxed", "balanced", "packed"] as const;
 
 type NeedsInput = { status: "needs_input"; missing: string[]; message: string };
 
+/**
+ * Stable signature identifying one planned trip. Used as a React key so
+ * RealityCheck state never survives across different plans.
+ */
+export function planSignature(plan: TripPlanData): string {
+  return [
+    plan.destination,
+    plan.startDate ?? "",
+    plan.endDate ?? "",
+    plan.durationDays,
+    plan.party.adults,
+    plan.party.children,
+    plan.days.length,
+  ].join("|");
+}
+
 const inputCls =
   "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-sky-600";
 const labelCls = "block text-sm font-medium text-neutral-700";
@@ -109,7 +125,7 @@ export default function TripForm() {
             className={inputCls}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls} htmlFor="startDate">
               Start date
@@ -135,7 +151,7 @@ export default function TripForm() {
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls} htmlFor="adults">
               Adults
@@ -238,7 +254,11 @@ export default function TripForm() {
       {plan && (
         <div className="mt-8">
           <ItineraryView plan={plan} />
-          <RealityCheckSection plan={plan} onPlanReplaced={setPlan} />
+          <RealityCheckSection
+            key={planSignature(plan)}
+            plan={plan}
+            onPlanReplaced={setPlan}
+          />
         </div>
       )}
     </div>

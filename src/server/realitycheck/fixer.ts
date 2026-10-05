@@ -288,11 +288,34 @@ export async function fixTrip(
 
   const currency = plan.totals.currency;
 
+  interface PlaceWork {
+    kind: "place";
+    issue: (typeof actionableCapped)[number];
+    location: { dayNumber: number; item: ItineraryItem };
+    originQuery: string;
+  }
+
+  interface StayWork {
+    kind: "stay";
+    issue: (typeof actionableCapped)[number];
+    stayParams: {
+      query: string;
+      checkIn: string;
+      checkOut: string;
+      adults: number;
+      children: number;
+      currency: string;
+    };
+    stayKey: string;
+    nights: number;
+  }
+
+  // Pre-pass: resolve work items without network. Location-missing and
+  // flexible-stay issues become unfixable here.
+  const workItems: Array<PlaceWork | StayWork> = [];
   for (const issue of actionableCapped) {
     const location = locations.get(issue.itemId);
-    const isStayIssue =
-      issue.itemId === "stay" || issue.kind === "stay";
-
+    const isStayIssue = issue.itemId === "stay" || issue.kind === "stay";
     if (isStayIssue) {
       const fixed =
         plan.dateMode === "fixed" && plan.startDate && plan.endDate;
@@ -306,20 +329,95 @@ export async function fixTrip(
         });
         continue;
       }
-      let hotels: NormalizedHotel[];
-      let query: string;
-      try {
-        const res = await client.searchHotels({
-          query: `hotels in ${plan.destination}`,
-          checkIn: plan.startDate as string,
-          checkOut: plan.endDate as string,
-          adults: plan.party.adults,
-          children: plan.party.children,
+      const stayParams = {
+        query: `hotels in ${plan.destination}`,
+        checkIn: plan.startDate as string,
+        checkOut: plan.endDate as string,
+        adults: plan.party.adults,
+        children: plan.party.children,
+        currency,
+      };
+      workItems.push({
+        kind: "stay",
+        issue,
+        stayParams,
+        stayKey: [
+          stayParams.query,
+          stayParams.checkIn,
+          stayParams.checkOut,
+          stayParams.adults,
+          stayParams.children,
           currency,
-        });
-        hotels = res.results;
-        query = `hotels in ${plan.destination}`;
-      } catch {
+        ].join("|||"),
+        nights: plan.stay.nights,
+      });
+    } else if (!location) {
+      unfixable.push({
+        itemId: issue.itemId,
+        title: issue.title,
+        status: issue.status,
+        reason: "Original itinerary item not found in the submitted plan.",
+      });
+    } else {
+      workItems.push({
+        kind: "place",
+        issue,
+        location,
+        originQuery:
+          location.item.evidence[0]?.query?.trim() ||
+          `${location.item.title} ${plan.destination}`,
+      });
+    }
+  }
+
+  // Batched discovery: one live call per distinct query. Rechecks remain
+  // sequential per issue; ranking, limits, and failure isolation unchanged.
+  const placePools = new Map<string, NormalizedMapsPlace[] | Error>();
+  await Promise.all(
+    [...new Set(workItems.filter((w): w is PlaceWork => w.kind === "place").map((w) => w.originQuery))].map(
+      async (originQuery) => {
+        try {
+          const res = await client.searchMaps({
+            query: originQuery,
+            location: plan.destination,
+          });
+          placePools.set(originQuery, res.results);
+        } catch (err) {
+          placePools.set(
+            originQuery,
+            err instanceof Error ? err : new Error("Replacement research failed."),
+          );
+        }
+      },
+    ),
+  );
+  const stayPools = new Map<string, NormalizedHotel[] | Error>();
+  await Promise.all(
+    [
+      ...new Map(
+        workItems
+          .filter((w): w is StayWork => w.kind === "stay")
+          .map((w) => [w.stayKey, w.stayParams] as const),
+      ).entries(),
+    ].map(async ([stayKey, params]) => {
+      try {
+        const res = await client.searchHotels({ ...params });
+        stayPools.set(stayKey, res.results);
+      } catch (err) {
+        stayPools.set(
+          stayKey,
+          err instanceof Error ? err : new Error("Stay research failed."),
+        );
+      }
+    }),
+  );
+
+  for (const work of workItems) {
+    const issue = work.issue;
+
+    if (work.kind === "stay") {
+      const poolResult = stayPools.get(work.stayKey);
+      if (poolResult instanceof Error || !poolResult) {
         unfixable.push({
           itemId: issue.itemId,
           title: issue.title,
@@ -328,8 +426,10 @@ export async function fixTrip(
         });
         continue;
       }
+      const hotels = poolResult;
+      const query = work.stayParams.query;
+      const nights = work.nights;
       const failed = failedKeys(issue);
-      const nights = plan.stay.nights;
       let pool = hotels.filter(
         (h) =>
           h.name &&
@@ -426,27 +526,9 @@ export async function fixTrip(
       continue;
     }
 
-    if (!location) {
-      unfixable.push({
-        itemId: issue.itemId,
-        title: issue.title,
-        status: issue.status,
-        reason: "Original itinerary item not found in the submitted plan.",
-      });
-      continue;
-    }
-
-    const originQuery =
-      location.item.evidence[0]?.query?.trim() ||
-      `${location.item.title} ${plan.destination}`;
-    let pool: NormalizedMapsPlace[];
-    try {
-      const res = await client.searchMaps({
-        query: originQuery,
-        location: plan.destination,
-      });
-      pool = res.results;
-    } catch {
+    const { location, originQuery } = work;
+    const poolResult = placePools.get(originQuery);
+    if (poolResult instanceof Error || !poolResult) {
       unfixable.push({
         itemId: issue.itemId,
         title: issue.title,
@@ -455,6 +537,7 @@ export async function fixTrip(
       });
       continue;
     }
+    const pool = poolResult;
 
     const failed = failedKeys(issue);
     const ranked = rankPlaces(

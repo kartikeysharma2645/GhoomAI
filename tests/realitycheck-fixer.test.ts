@@ -343,6 +343,29 @@ describe("fixer verification loop", () => {
     ).toBe(true);
     expect(res.warnings.some((w) => w.includes("first 3"))).toBe(true);
   });
+
+  it("batches shared discovery queries across issues", async () => {
+    const fake = fakeClient(() => GOOD_POOL);
+    const res = await fixTrip(
+      {
+        plan: plan(),
+        check: check([
+          problemCheck("d1-a1", "Old Fort"),
+          problemCheck("d2-a1", "Old Museum"),
+        ]),
+      },
+      asClient(fake),
+      NOW,
+    );
+    // Both issues share "tourist attractions in Jaipur": 1 research call,
+    // plus one confirmatory recheck per placed replacement.
+    const researchCalls = fake.searchMaps.mock.calls.filter(
+      (c) =>
+        (c[0] as { query: string }).query === "tourist attractions in Jaipur",
+    );
+    expect(researchCalls.length).toBe(3);
+    expect(res.changes).toHaveLength(2);
+  });
 });
 
 describe("fixer immutability and shape", () => {
@@ -501,8 +524,7 @@ describe("fixer stay handling", () => {
   });
 });
 
-describe("fixer request validation", () => {
-  it("rejects invalid requests", async () => {
+describe("fixer request validation", () => {  it("rejects invalid requests", async () => {
     const fake = fakeClient(() => []);
     await expect(fixTrip({}, asClient(fake), NOW)).rejects.toThrow(
       ValidationError,
