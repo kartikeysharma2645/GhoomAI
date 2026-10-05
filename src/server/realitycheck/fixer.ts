@@ -73,7 +73,7 @@ export function isActionable(check: Pick<ItemCheck, "status" | "facts">): boolea
 }
 
 /** A recheck passes when it is clean or carries only non-actionable notes. */
-function candidatePasses(recheck: ItemCheck): boolean {
+export function candidatePasses(recheck: ItemCheck): boolean {
   if (recheck.status === "VERIFIED") return true;
   if (recheck.status !== "NEEDS_ATTENTION") return false;
   return !isActionableAttention(recheck);

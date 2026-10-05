@@ -52,6 +52,7 @@ availability, feasibility) should eventually be backed by evidence from live dat
 - **Phase 4 (in progress — Step 2 completed):** Trip planning foundation + enhanced research and itinerary quality.
 - **Phase 5 (in progress — Steps 1–4 completed):** RealityCheck engine + report + fix proposals + user approval/apply (no auto-apply).
 - **Phase 6 (completed):** Live Trip activation, itinerary tracking, and completion.
+- **Phase 7 (in progress — Steps 1–3):** Live situation awareness, reschedule proposals, approval/apply (no auto-reschedule).
 - Application development is now permitted, strictly according to the phased
   plan in Section 3.
 - Do **not** build the complete application yet — implement only what the
@@ -72,7 +73,10 @@ validating earlier phases.
   - Step 1: Trip activation & state foundation.
   - Step 2: Live itinerary tracker.
   - Final integration/hardening audit completed.
-- **Phase 7:** Landmark/image intelligence and travel companion features.
+- **Phase 7 (in progress — Steps 1–3):**
+  - Step 1: Live situation awareness & disruption detection — completed.
+  - Step 2: Bounded rescheduling proposals — completed.
+  - Step 3: User approval, apply, fresh recheck — this prompt.
 - **Phase 8:** Production hardening, testing, and deployment.
 
 Rules:

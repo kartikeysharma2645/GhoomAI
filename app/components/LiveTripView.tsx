@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import LiveSituationPanel from "./LiveSituationPanel";
 
 /**
  * Live Trip tracker UI (Phase 6 Step 2).
@@ -355,6 +356,15 @@ export default function LiveTripView({
         <p className="text-xs text-neutral-500">
           Complete or skip every activity to finish the trip.
         </p>
+      )}
+
+      {isActive && (
+        <LiveSituationPanel
+          trip={trip}
+          onTripChange={(next) => {
+            onTripChange(next);
+          }}
+        />
       )}
     </section>
   );
