@@ -2,7 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import ItineraryView, { type TripPlanData } from "./ItineraryView";
+import LiveTripView, { type LiveTripData } from "./LiveTripView";
 import RealityCheckSection from "./RealityCheckSection";
+
+type ActiveTripData = LiveTripData;
 
 /**
  * Trip requirements form. POSTs to our own /api/trips/plan only.
@@ -54,6 +57,8 @@ export default function TripForm() {
   const [error, setError] = useState<string | null>(null);
   const [needsInput, setNeedsInput] = useState<NeedsInput | null>(null);
   const [plan, setPlan] = useState<TripPlanData | null>(null);
+  const [activeTrip, setActiveTrip] = useState<ActiveTripData | null>(null);
+  const [activating, setActivating] = useState(false);
 
   function toggleInterest(i: string) {
     setInterests((prev) =>
@@ -93,16 +98,45 @@ export default function TripForm() {
       }
       if ((json.data as NeedsInput).status === "needs_input") {
         setPlan(null);
+        setActiveTrip(null);
         setNeedsInput(json.data as NeedsInput);
       } else {
         setNeedsInput(null);
         setPlan(json.data as TripPlanData);
+        setActiveTrip(null);
       }
     } catch (err) {
       setPlan(null);
+      setActiveTrip(null);
       setError(err instanceof Error ? err.message : "Request failed.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function startTrip() {
+    if (activating || !plan) return;
+    setActivating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/trips/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, fromStatus: "APPROVED" }),
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: ActiveTripData;
+        error?: { message?: string };
+      };
+      if (!res.ok || !json.ok || !json.data) {
+        throw new Error(json.error?.message ?? "Something went wrong.");
+      }
+      setActiveTrip(json.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed.");
+    } finally {
+      setActivating(false);
     }
   }
 
@@ -257,8 +291,23 @@ export default function TripForm() {
           <RealityCheckSection
             key={planSignature(plan)}
             plan={plan}
-            onPlanReplaced={setPlan}
+            onPlanReplaced={(next) => {
+              setPlan(next);
+              setActiveTrip(null);
+            }}
           />
+          {!activeTrip ? (
+            <button
+              type="button"
+              disabled={activating}
+              onClick={() => void startTrip()}
+              className="mt-6 w-full rounded-xl bg-emerald-700 px-5 py-3 font-medium text-white shadow-sm hover:bg-emerald-600 disabled:opacity-50"
+            >
+              {activating ? "Starting trip…" : "Start Trip"}
+            </button>
+          ) : (
+            <LiveTripView trip={activeTrip} onTripChange={setActiveTrip} />
+          )}
         </div>
       )}
     </div>
