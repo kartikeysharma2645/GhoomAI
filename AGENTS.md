@@ -50,7 +50,7 @@ availability, feasibility) should eventually be backed by evidence from live dat
   Google Search, Google Maps, and Google Hotels.
 - **Phase 3 (in progress):** Basic GhoomAI interaction with live SerpApi data.
 - **Phase 4 (in progress — Step 2 completed):** Trip planning foundation + enhanced research and itinerary quality.
-- **Phase 5 (in progress — Step 1 completed):** RealityCheck verification engine (no fixing).
+- **Phase 5 (in progress — Steps 1–2 completed):** RealityCheck verification engine + user-facing report (no fixing).
 - Application development is now permitted, strictly according to the phased
   plan in Section 3.
 - Do **not** build the complete application yet — implement only what the
@@ -66,7 +66,7 @@ validating earlier phases.
 - **Phase 2 (completed):** Secure SerpApi integration and a minimal connectivity test.
 - **Phase 3 (in progress):** Basic GhoomAI interaction with live SerpApi data.
 - **Phase 4 (in progress — Step 2 completed):** Trip planning foundation + enhanced research and itinerary quality.
-- **Phase 5 (in progress — Step 1 completed):** RealityCheck verification engine (verify only; fixing later).
+- **Phase 5 (in progress — Steps 1–2 completed):** RealityCheck verification engine + user-facing report (verify only; fixing later).
 - **Phase 6:** Dynamic itinerary rescheduling and live trip functionality.
 - **Phase 7:** Landmark/image intelligence and travel companion features.
 - **Phase 8:** Production hardening, testing, and deployment.

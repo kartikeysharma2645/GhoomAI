@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import ItineraryView, { type TripPlanData } from "./ItineraryView";
+import RealityCheckSection from "./RealityCheckSection";
 
 /**
  * Trip requirements form. POSTs to our own /api/trips/plan only.
@@ -237,6 +238,7 @@ export default function TripForm() {
       {plan && (
         <div className="mt-8">
           <ItineraryView plan={plan} />
+          <RealityCheckSection plan={plan} />
         </div>
       )}
     </div>
