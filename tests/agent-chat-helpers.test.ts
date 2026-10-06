@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  APPROVAL_CTA,
   buildConfirmPayload,
   cancelPayload,
   isAcceptedImage,
+  requiresApproval,
 } from "../app/components/agentChatHelpers";
 
 describe("agent chat helpers", () => {
@@ -113,5 +115,99 @@ describe("agent chat helpers", () => {
     expect(isAcceptedImage({ type: "image/gif", size: 100 })).toBe(false);
     expect(isAcceptedImage({ type: "image/png", size: 9_000_000 })).toBe(false);
     expect(isAcceptedImage({ type: "image/png", size: 0 })).toBe(false);
+  });
+
+  it("flags approval-required booking turns for the Trip Planner CTA", () => {
+    // booking_discover clarification without result data → approval CTA.
+    expect(
+      requiresApproval({ intent: "booking_discover", outcome: "clarification" }),
+    ).toBe(true);
+    expect(
+      requiresApproval({
+        intent: "booking_recheck",
+        outcome: "clarification",
+        data: {},
+      }),
+    ).toBe(true);
+  });
+
+  it("flags router-level approval gating for the Trip Planner CTA", () => {
+    // The router gates before classification: unapproved booking turns
+    // arrive as needs_clarification carrying the exact gate message.
+    expect(
+      requiresApproval({
+        intent: "needs_clarification",
+        outcome: "clarification",
+        message:
+          "Booking discovery needs an approved itinerary. Approve your trip plan first, then ask me to find booking options.",
+      }),
+    ).toBe(true);
+    expect(
+      requiresApproval({
+        intent: "needs_clarification",
+        outcome: "clarification",
+        message: "The final pre-trip check needs an approved itinerary.",
+      }),
+    ).toBe(true);
+    // Any other clarification wording gets no CTA.
+    expect(
+      requiresApproval({
+        intent: "needs_clarification",
+        outcome: "clarification",
+        message: "There is no itinerary to check yet.",
+      }),
+    ).toBe(false);
+    expect(
+      requiresApproval({ intent: "needs_clarification", outcome: "clarification" }),
+    ).toBe(false);
+  });
+
+  it("does not flag unrelated or completed turns for the approval CTA", () => {
+    // Completed discovery already has options — no approval CTA.
+    expect(
+      requiresApproval({
+        intent: "booking_discover",
+        outcome: "completed",
+        data: { discovery: { items: [] } },
+      }),
+    ).toBe(false);
+    // Clarification carrying result data is not an approval gate.
+    expect(
+      requiresApproval({
+        intent: "booking_discover",
+        outcome: "clarification",
+        data: { discovery: { items: [] } },
+      }),
+    ).toBe(false);
+    // Other intents never trigger the approval CTA.
+    for (const intent of [
+      "plan_trip",
+      "check_trip",
+      "fix_trip",
+      "booking_select",
+      "activate_trip",
+      "trip_status",
+      "needs_clarification",
+      "out_of_scope",
+    ]) {
+      expect(requiresApproval({ intent, outcome: "clarification" })).toBe(false);
+      expect(requiresApproval({ intent, outcome: "completed" })).toBe(false);
+    }
+  });
+
+  it("renders human-readable approval guidance, not internal identifiers", () => {
+    // APPROVAL_CTA is the exact copy the chat renders for the approval card.
+    expect(APPROVAL_CTA.target).toBe("/plan");
+    expect(APPROVAL_CTA.label).toBe("Open Trip Planner to Approve →");
+    for (const text of [
+      APPROVAL_CTA.heading,
+      APPROVAL_CTA.body,
+      APPROVAL_CTA.returnGuidance,
+      APPROVAL_CTA.label,
+    ]) {
+      expect(text).not.toMatch(/APPROVED|BOOKING|EXTERNAL|booking_discover|needs_clarification/);
+    }
+    expect(APPROVAL_CTA.body).toContain("will not approve it for you");
+    expect(APPROVAL_CTA.returnGuidance).toContain("Find booking options");
   });
 });

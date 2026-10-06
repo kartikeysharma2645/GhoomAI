@@ -80,9 +80,20 @@ function ProposalAdapter({ proposal }: { proposal: unknown }) {
 function OptionsAdapter({ discovery }: { discovery: unknown }) {
   if (!isRecord(discovery) || !Array.isArray(discovery.items)) return null;
   const items = discovery.items.filter(isRecord);
+  const withOptions = items.filter(
+    (item) => Array.isArray(item.options) && item.options.filter(isRecord).length > 0,
+  );
+  if (withOptions.length === 0) {
+    return (
+      <p className="text-sm text-neutral-600">
+        No suitable live options were found. Try again later, or adjust the
+        itinerary and run a fresh check first.
+      </p>
+    );
+  }
   return (
     <div className="space-y-2">
-      {items.map((item, i) => {
+      {withOptions.map((item, i) => {
         const options = Array.isArray(item.options) ? item.options.filter(isRecord) : [];
         if (options.length === 0) return null;
         return (

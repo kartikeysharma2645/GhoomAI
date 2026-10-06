@@ -3,11 +3,13 @@
 import { useRef, useState, type FormEvent } from "react";
 import {
   ACCEPTED_IMAGE_MIMES,
+  APPROVAL_CTA,
   asConfirmAction,
   buildConfirmPayload,
   cancelPayload,
   intentLabel,
   isAcceptedImage,
+  requiresApproval,
   type ConfirmPayload,
 } from "./agentChatHelpers";
 import AgentResultView, { type AgentTurnView } from "./AgentResultView";
@@ -239,6 +241,26 @@ export default function AgentChat() {
                 )}
               </div>
               {t.turn && <AgentResultView turn={t.turn} />}
+              {t.turn && requiresApproval(t.turn) && (
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <p className="text-sm font-bold text-neutral-900">
+                    {APPROVAL_CTA.heading}
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-700">
+                    {APPROVAL_CTA.body}
+                  </p>
+                  <a
+                    href={APPROVAL_CTA.target}
+                    aria-label="Open Trip Planner to approve your itinerary"
+                    className="mt-3 inline-block rounded-xl bg-neutral-900 px-5 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+                  >
+                    {APPROVAL_CTA.label}
+                  </a>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    {APPROVAL_CTA.returnGuidance}
+                  </p>
+                </div>
+              )}
               {t.turn?.confirmationRequired && activeConfirmTurnId === t.id && (
                 <div
                   role="group"

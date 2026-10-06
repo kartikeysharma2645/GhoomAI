@@ -98,6 +98,57 @@ export function asConfirmAction(value: string): ConfirmAction | null {
     : null;
 }
 
+/**
+ * Copy contract for the approval-handoff card shown when a booking turn
+ * needs an approved itinerary. Centralized here (not inline JSX) so tests
+ * can assert the navigation target and the absence of internal identifiers.
+ * Navigation only — approval itself stays in the Trip Planner.
+ */
+export const APPROVAL_CTA = {
+  target: "/plan",
+  label: "Open Trip Planner to Approve →",
+  heading: "Approval required",
+  body: "Your itinerary must be explicitly approved before booking options can be discovered. Approval happens in the Trip Planner — GhoomAI will not approve it for you.",
+  returnGuidance:
+    "After approving your itinerary, return here and ask: Find booking options.",
+} as const;
+
+/**
+ * Whether a turn is asking the user to get the itinerary approved before
+ * continuing. Two server shapes produce this:
+ * - booking_discover/booking_recheck ending in clarification without result
+ *   data (orchestrator-level gate);
+ * - needs_clarification carrying one of the orchestrator's exact
+ *   approval-gate messages (the router gates before classification, so the
+ *   intent never becomes booking_* in that path).
+ * Pure presentation gate: it never authorizes anything, it only decides
+ * whether to show the "Open Trip Planner to Approve" navigation CTA.
+ * Message matching is exact against server-controlled strings; any other
+ * wording degrades gracefully to no CTA.
+ */
+const APPROVAL_GATE_MESSAGES: readonly string[] = [
+  "Booking discovery needs an approved itinerary. Approve your trip plan first, then ask me to find booking options.",
+  "The final pre-trip check needs an approved itinerary.",
+];
+
+export function requiresApproval(turn: {
+  intent: string;
+  outcome: string;
+  message?: string;
+  data?: unknown;
+}): boolean {
+  if (turn.outcome !== "clarification") return false;
+  if (turn.intent === "booking_discover" || turn.intent === "booking_recheck") {
+    if (!isRecord(turn.data)) return true;
+    if ("discovery" in turn.data || "recheck" in turn.data) return false;
+    return true;
+  }
+  if (turn.intent === "needs_clarification" && typeof turn.message === "string") {
+    return (APPROVAL_GATE_MESSAGES as readonly string[]).includes(turn.message);
+  }
+  return false;
+}
+
 /** Client-side image guard for UX only; the server remains authoritative. */
 export const ACCEPTED_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const MAX_IMAGE_BYTES = 8_000_000;
