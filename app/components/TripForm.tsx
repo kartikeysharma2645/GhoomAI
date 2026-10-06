@@ -6,6 +6,7 @@ import ItineraryView, { type TripPlanData } from "./ItineraryView";
 import LiveTripView, { type LiveTripData } from "./LiveTripView";
 import RealityCheckSection from "./RealityCheckSection";
 import { postJson } from "./request";
+import { parsePlanResponse } from "./planResult";
 import { missingFieldLabel } from "./agentChatHelpers";
 
 type ActiveTripData = LiveTripData;
@@ -107,15 +108,15 @@ export default function TripForm() {
       if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
         throw new Error(errorMessage(json, "Something went wrong."));
       }
-      const data = json.data as unknown as TripPlanData | NeedsInput;
-      if ((data as NeedsInput).status === "needs_input") {
+      const data = parsePlanResponse(json.data);
+      if (data.kind === "needs_input") {
         setPlan(null);
         setActiveTrip(null);
         setApproved(false);
-        setNeedsInput(data as NeedsInput);
+        setNeedsInput(data.input);
       } else {
         setNeedsInput(null);
-        setPlan(data as TripPlanData);
+        setPlan(data.plan as unknown as TripPlanData);
         setActiveTrip(null);
         setApproved(false);
       }
