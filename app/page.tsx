@@ -19,6 +19,14 @@ export default function HomePage() {
       <AskBox />
 
       <p className="text-sm text-neutral-600">
+        Want the full agent experience?{" "}
+        <a href="/agent" className="font-medium text-sky-700 hover:underline">
+          Chat with GhoomAI
+        </a>{" "}
+        — plan, verify, book handoff, and track, in one conversation.
+      </p>
+
+      <p className="text-sm text-neutral-600">
         Planning a full trip?{" "}
         <a href="/plan" className="font-medium text-sky-700 hover:underline">
           Build a multi-day itinerary

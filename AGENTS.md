@@ -62,6 +62,12 @@ availability, feasibility) should eventually be backed by evidence from live dat
   around the existing RealityCheck engine + panel UI (Prompt 3,
   smoke-tested). No booking performed, no database, all DoD items PASS
   (see §11).
+- **Phase 10 (completed):** Unified Travel Agent Orchestration:
+  deterministic intent taxonomy + client-held session contract (Prompt 1),
+  single-action orchestrator + `POST /api/agent` with approval gates
+  (Prompt 2, smoke-tested), unified conversational UI at `/agent`
+  embedding existing viewers + end-to-end smoke (Prompt 3). No LLM, no
+  hidden chains, all DoD items PASS (see §12).
 - Application development is now permitted, strictly according to the phased
   plan in Section 3.
 - Do **not** build the complete application yet — implement only what the
@@ -90,6 +96,9 @@ validating earlier phases.
 - **Phase 9 (completed):** Booking & Handoff / Pre-Trip Finalization
   (readiness + live discovery + selection receipts + final recheck;
   verification-only, no transactions).
+- **Phase 10 (completed):** Unified Travel Agent Orchestration
+  (taxonomy + session + routing; orchestrator + `/api/agent` + approval
+  gates; unified `/agent` UI; no LLM, verification-only handoffs).
 
 Rules:
 
@@ -333,3 +342,177 @@ transactional integration, the correct behavior is external handoff:
   capabilities permit.
 - Documentation updated.
 - No commit/push by OpenCode.
+
+## 12. Phase 10 — Unified Travel Agent Orchestration Contract
+
+Status:
+- Phase 10 completed (Prompts 1–3; all Definition of Done items PASS).
+
+Product goal:
+Turn the separate Phase 1–9 capabilities into one coherent deterministic
+travel-agent workflow where a user's natural-language request can invoke
+the appropriate existing GhoomAI capability without requiring manual
+navigation between separate product surfaces.
+
+Core principle:
+"Route deterministically; act transparently; never guess."
+
+Core user problem:
+The current product contains planning, RealityCheck, fixing, live-trip,
+vision, and booking/handoff capabilities, but the user must manually
+navigate their separate surfaces. The existing NL Ask surface only
+supports limited single-shot search intents.
+
+### Scope
+
+1. Extended deterministic intent taxonomy covering:
+   - plan_trip
+   - check_trip
+   - fix_trip
+   - booking_discover
+   - booking_select
+   - booking_recheck
+   - activate_trip
+   - trip_status/progress
+   - reschedule_advice
+   - identify_place
+   - existing search intents
+   - explicit out_of_scope
+2. Client-held conversation session:
+   - transcript
+   - active plan
+   - lifecycle status
+   - selections
+   - relevant latest verification state
+3. Server-side deterministic orchestrator:
+   - intent
+   - validation
+   - exactly one existing capability action per turn
+   - typed response
+   - capability invoked
+   - returned data
+   - suggested next actions
+4. Unified conversational UI that embeds existing viewers instead of
+   rebuilding them.
+5. Explicit approval gates remain mandatory for consequential actions.
+
+### Non-goals
+
+- No LLM integration.
+- No autonomous hidden multi-step execution.
+- No new lifecycle.
+- No database/persistence.
+- No new SerpApi engines solely for orchestration.
+- No trip mutation outside existing services.
+- No redesign/reimplementation of existing panels.
+- No general-purpose chit-chat persona.
+
+### Reuse
+
+- existing `agent/intent.ts`
+- existing `agent/responder.ts`
+- trip planning services
+- RealityCheck services
+- fix/apply services
+- Live Trip services
+- booking/handoff services
+- vision services
+- existing SerpApi gateway
+- existing evidence/error/schema conventions
+- existing viewer components
+
+### SerpApi role
+
+The orchestrator does not become a second SerpApi client. Existing
+capabilities continue to perform their established live-data calls
+through the shared gateway.
+
+### Architecture
+
+`src/server/agent/orchestrator.ts`
+
+Conceptual contract:
+`(session, message) -> { intent, action, data, followUps }`
+
+The router must remain deterministic.
+
+Low-confidence or ambiguous input must produce a clarification rather
+than guessing.
+
+Only one capability action executes per turn.
+
+Consequential actions such as activation, applying fixes/reschedules,
+and selecting external handoff options require explicit user
+confirmation.
+
+### State
+
+No new lifecycle.
+
+Session is client-held and validated with Zod. It may contain:
+- transcript
+- active plan
+- trip status
+- selections
+- latest relevant verification state
+
+### Security
+
+- secrets remain server-side
+- Zod validation at API boundaries
+- no arbitrary URL fetching
+- no payment data
+- session/transcript size limits
+- no unnecessary transcript logging
+- existing SerpApi security remains unchanged
+
+### Failure behavior
+
+- unknown intent → explicit `out_of_scope` / clarification
+- action failures reuse existing error taxonomy
+- failed actions do not corrupt client session state
+- upstream failures remain explicit/retryable
+- no invented actions or results
+
+### Testing
+
+- complete deterministic intent matrix
+- out_of_scope
+- clarification/low-confidence behavior
+- session schema validation
+- orchestrator dispatch
+- approval-gate enforcement
+- no-action-without-required-data
+- existing service failures
+- full regression suite
+- typecheck
+- production build
+- controlled live smoke using existing SerpApi-backed capabilities
+
+### Definition of Done (Phase 10)
+
+- intent taxonomy covers the existing Phase 1–9 capabilities
+- deterministic single-action-per-turn orchestration works
+- conversation carries plan/status across turns
+- all approval gates remain intact
+- existing surfaces continue to work independently
+- full tests pass
+- typecheck/build pass
+- live smoke passes
+- documentation updated
+- no commit/push by OpenCode
+
+### Recommended three-prompt implementation breakdown
+
+1. Intent taxonomy + session contract + routing tests.
+2. Orchestrator dispatch + conversational API + approval-gate enforcement.
+3. Unified conversational UI + end-to-end smoke + final audit.
+
+### Risks/limitations
+
+- deterministic keyword routing can be brittle
+- ambiguity must resolve to clarification rather than guessed intent
+- conversational UI complexity
+- strict scope boundary against autonomous hidden chains
+- future LLM classification could fit the same typed router boundary, but
+  is explicitly out of scope for Phase 10.
