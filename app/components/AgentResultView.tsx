@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+import ExternalLink from "./ExternalLink";
 import ItineraryView, { type TripPlanData } from "./ItineraryView";
 import RealityCheckReport, { type RealityCheckData } from "./RealityCheckReport";
 import ResultCards, { type AskResponseData } from "./ResultCards";
@@ -108,14 +110,12 @@ function OptionsAdapter({ discovery }: { discovery: unknown }) {
                     {String(o.provider ?? "")}
                   </p>
                   {typeof o.url === "string" && o.url ? (
-                    <a
+                    <ExternalLink
                       href={o.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="mt-1 inline-block text-sm font-medium text-sky-700 hover:underline"
                     >
-                      Continue to provider
-                    </a>
+                      Continue to provider ↗
+                    </ExternalLink>
                   ) : (
                     <p className="text-xs text-neutral-500">Search lead — no direct page.</p>
                   )}

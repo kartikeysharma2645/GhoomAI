@@ -4,7 +4,9 @@
  * bases, and evidence counts are shown as returned, never reinterpreted.
  */
 
+import React from "react";
 import { externalPlaceUrl } from "./agentChatHelpers";
+import ExternalLink from "./ExternalLink";
 
 export interface PlanEvidence {
   engine: string;
@@ -132,14 +134,12 @@ function EvidenceLine({ evidence }: { evidence: PlanEvidence[] }) {
         Evidence: {sources.join(" + ")}
       </p>
       {placeUrl && (
-        <a
+        <ExternalLink
           href={placeUrl}
-          target="_blank"
-          rel="noopener noreferrer"
           className="mt-1 inline-block text-xs font-medium text-sky-700 hover:underline"
         >
           View Place ↗
-        </a>
+        </ExternalLink>
       )}
     </>
   );

@@ -4,6 +4,8 @@
  * from the server-side SerpApi gateway. Missing optional fields render
  * nothing; nothing is ever fabricated.
  */
+import React from "react";
+import ExternalLink from "./ExternalLink";
 
 export interface AskResultItem {
   title?: string;
@@ -147,14 +149,12 @@ function PlaceCard({ place }: { place: AskResultItem }) {
           <p className="mt-1 text-sm text-neutral-600">{place.address}</p>
         )}
         {website && (
-          <a
+          <ExternalLink
             href={website}
-            target="_blank"
-            rel="noopener noreferrer"
             className="mt-1 inline-block text-sm font-medium text-sky-700 hover:underline"
           >
             View Place ↗ · {domainOf(website)}
-          </a>
+          </ExternalLink>
         )}
       </div>
     </article>
@@ -165,14 +165,12 @@ function SearchCard({ item }: { item: AskResultItem }) {
   return (
     <article className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
       {item.link ? (
-        <a
+        <ExternalLink
           href={item.link}
-          target="_blank"
-          rel="noopener noreferrer"
           className="font-semibold text-sky-800 hover:underline"
         >
           {item.title}
-        </a>
+        </ExternalLink>
       ) : (
         <h3 className="font-semibold text-neutral-900">{item.title}</h3>
       )}

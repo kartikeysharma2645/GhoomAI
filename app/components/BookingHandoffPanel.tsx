@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { TripPlanData } from "./ItineraryView";
 import { formatCheckedAt, statusLabel } from "./agentChatHelpers";
+import ExternalLink from "./ExternalLink";
 import { postJson } from "./request";
 
 /**
@@ -474,14 +475,12 @@ export default function BookingHandoffPanel({
                           )}
                           <div className="mt-2 flex flex-wrap gap-2">
                             {option.url ? (
-                              <a
+                              <ExternalLink
                                 href={option.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
                                 className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
                               >
-                                Continue to provider
-                              </a>
+                                Continue to provider ↗
+                              </ExternalLink>
                             ) : (
                               <p className="text-xs text-neutral-500">
                                 Search lead — no direct provider page was
