@@ -5,6 +5,8 @@ import BookingHandoffPanel from "./BookingHandoffPanel";
 import ItineraryView, { type TripPlanData } from "./ItineraryView";
 import LiveTripView, { type LiveTripData } from "./LiveTripView";
 import RealityCheckSection from "./RealityCheckSection";
+import { postJson } from "./request";
+import { missingFieldLabel } from "./agentChatHelpers";
 
 type ActiveTripData = LiveTripData;
 
@@ -25,6 +27,17 @@ const ALL_INTERESTS = [
 const PACES = ["relaxed", "balanced", "packed"] as const;
 
 type NeedsInput = { status: "needs_input"; missing: string[]; message: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function errorMessage(json: unknown, fallback: string): string {
+  if (isRecord(json) && isRecord(json.error) && typeof json.error.message === "string") {
+    return json.error.message;
+  }
+  return fallback;
+}
 
 /**
  * Stable signature identifying one planned trip. Used as a React key so
@@ -80,37 +93,29 @@ export default function TripForm() {
     setError(null);
     setNeedsInput(null);
     try {
-      const res = await fetch("/api/trips/plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination: destination.trim() || undefined,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-          adults: Number(adults) || undefined,
-          budget: budget.trim()
-            ? { amount: Number(budget), currency: "INR" }
-            : undefined,
-          interests: interests.length > 0 ? interests : undefined,
-          pace,
-        }),
+      const { status, json } = await postJson("/api/trips/plan", {
+        destination: destination.trim() || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        adults: Number(adults) || undefined,
+        budget: budget.trim()
+          ? { amount: Number(budget), currency: "INR" }
+          : undefined,
+        interests: interests.length > 0 ? interests : undefined,
+        pace,
       });
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: TripPlanData | NeedsInput;
-        error?: { message?: string };
-      };
-      if (!res.ok || !json.ok || !json.data) {
-        throw new Error(json.error?.message ?? "Something went wrong.");
+      if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
+        throw new Error(errorMessage(json, "Something went wrong."));
       }
-      if ((json.data as NeedsInput).status === "needs_input") {
+      const data = json.data as unknown as TripPlanData | NeedsInput;
+      if ((data as NeedsInput).status === "needs_input") {
         setPlan(null);
         setActiveTrip(null);
         setApproved(false);
-        setNeedsInput(json.data as NeedsInput);
+        setNeedsInput(data as NeedsInput);
       } else {
         setNeedsInput(null);
-        setPlan(json.data as TripPlanData);
+        setPlan(data as TripPlanData);
         setActiveTrip(null);
         setApproved(false);
       }
@@ -129,20 +134,14 @@ export default function TripForm() {
     setActivating(true);
     setError(null);
     try {
-      const res = await fetch("/api/trips/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, fromStatus: "APPROVED" }),
+      const { status, json } = await postJson("/api/trips/activate", {
+        plan,
+        fromStatus: "APPROVED",
       });
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: ActiveTripData;
-        error?: { message?: string };
-      };
-      if (!res.ok || !json.ok || !json.data) {
-        throw new Error(json.error?.message ?? "Something went wrong.");
+      if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
+        throw new Error(errorMessage(json, "Something went wrong."));
       }
-      setActiveTrip(json.data);
+      setActiveTrip(json.data as unknown as ActiveTripData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed.");
     } finally {
@@ -289,7 +288,7 @@ export default function TripForm() {
           <p className="mt-1">{needsInput.message}</p>
           {needsInput.missing.length > 0 && (
             <p className="mt-1 text-xs">
-              Missing: {needsInput.missing.join(", ")}
+              Still needed: {needsInput.missing.map((m) => missingFieldLabel(m)).join(", ")}.
             </p>
           )}
         </div>

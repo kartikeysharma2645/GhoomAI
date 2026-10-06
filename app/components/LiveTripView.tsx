@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LiveSituationPanel from "./LiveSituationPanel";
+import { postJson } from "./request";
 
 /**
  * Live Trip tracker UI (Phase 6 Step 2).
@@ -86,24 +87,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function postTrip(
-  url: string,
-  body: unknown,
-): Promise<{ status: number; json: unknown }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  let json: unknown = null;
-  try {
-    json = await res.json();
-  } catch {
-    // Handled by status check below.
-  }
-  return { status: res.status, json };
-}
-
 function responseError(json: unknown, fallback: string): string {
   if (isRecord(json) && isRecord(json.error) && typeof json.error.message === "string") {
     return json.error.message;
@@ -151,7 +134,7 @@ export default function LiveTripView({
     setPendingKey(key);
     setError(null);
     try {
-      const { status, json } = await postTrip(url, body);
+      const { status, json } = await postJson(url, body);
       if (status !== 200) throw new Error(responseError(json, "Something went wrong."));
       if (
         !isRecord(json) ||
@@ -247,6 +230,11 @@ export default function LiveTripView({
       )}
 
       <ol className="space-y-3">
+        {(!viewed || viewed.items.length === 0) && (
+          <li className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+            No activities scheduled for this day.
+          </li>
+        )}
         {viewed?.items.map((item) => {
           const status = statusOf(item.id);
           const busy = pendingKey !== null;

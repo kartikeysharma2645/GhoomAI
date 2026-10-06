@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { postJson } from "./request";
 import RealityCheckReport, {
   parseRealityCheckResponse,
   statusLabel,
@@ -52,24 +53,6 @@ function errorMessage(json: unknown, fallback: string): string {
     return json.error.message;
   }
   return fallback;
-}
-
-async function postJson(
-  url: string,
-  body: unknown,
-): Promise<{ status: number; json: unknown }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  let json: unknown = null;
-  try {
-    json = await res.json();
-  } catch {
-    // Non-JSON response: handled by status check below.
-  }
-  return { status: res.status, json };
 }
 
 export default function RealityCheckSection({

@@ -3,9 +3,9 @@ import {
   ConfigurationError,
   UpstreamError,
   ValidationError,
-} from "@/src/lib/errors";
-import { tripPlanRequestSchema } from "@/src/server/trips/requirements";
-import { planTrip } from "@/src/server/trips/service";
+} from "../../../../src/lib/errors";
+import { tripPlanRequestSchema } from "../../../../src/server/trips/requirements";
+import { planTrip } from "../../../../src/server/trips/service";
 
 /**
  * Phase 4 Step 1 trip planning endpoint (no history, no booking).

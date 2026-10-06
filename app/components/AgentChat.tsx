@@ -6,10 +6,12 @@ import {
   asConfirmAction,
   buildConfirmPayload,
   cancelPayload,
+  intentLabel,
   isAcceptedImage,
   type ConfirmPayload,
 } from "./agentChatHelpers";
 import AgentResultView, { type AgentTurnView } from "./AgentResultView";
+import { postJson } from "./request";
 
 /**
  * Unified conversational GhoomAI surface (Phase 10 Prompt 3).
@@ -106,26 +108,19 @@ export default function AgentChat() {
     // A new outbound message retires any shown confirmation box.
     setActiveConfirmTurnId(null);
     try {
-      const res = await fetch("/api/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { status, json } = await postJson(
+        "/api/agent",
+        {
           session,
           message: trimmed,
           ...(confirm ? { confirm } : {}),
           ...(attachedImage
             ? { imageBase64: attachedImage.base64, imageMimeType: attachedImage.mimeType }
             : {}),
-        }),
-      });
-      let json: unknown = null;
-      try {
-        json = await res.json();
-      } catch {
-        // Handled via status check below.
-      }
-      if (!res.ok || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
-        if (res.status === 400) setSessionBroken(true);
+        },
+      );
+      if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
+        if (status === 400) setSessionBroken(true);
         throw new Error(errorMessage(json, "Something went wrong."));
       }
       const turn = json.data as unknown as AgentTurnView & { session: SessionState };
@@ -223,7 +218,7 @@ export default function AgentChat() {
               <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 {t.turn && (
                   <p className="mb-1 text-xs font-medium uppercase tracking-wide text-sky-700">
-                    {t.turn.intent.replace(/_/g, " ")} · {t.turn.capability}
+                    {intentLabel(t.turn.intent)}
                   </p>
                 )}
                 <p className="text-sm text-neutral-800">{t.text}</p>

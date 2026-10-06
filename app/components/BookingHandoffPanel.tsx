@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { TripPlanData } from "./ItineraryView";
+import { formatCheckedAt, statusLabel } from "./agentChatHelpers";
+import { postJson } from "./request";
 
 /**
  * Phase 9 booking/handoff panel: readiness + live discovery +
@@ -147,24 +149,6 @@ function errorMessage(json: unknown, fallback: string): string {
     return json.error.message;
   }
   return fallback;
-}
-
-async function postJson(
-  url: string,
-  body: unknown,
-): Promise<{ status: number; json: unknown }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  let json: unknown = null;
-  try {
-    json = await res.json();
-  } catch {
-    // Handled via status check.
-  }
-  return { status: res.status, json };
 }
 
 const READINESS_STYLE: Record<Readiness, string> = {
@@ -334,6 +318,7 @@ export default function BookingHandoffPanel({
       <h3 className="font-bold text-neutral-900">Booking &amp; handoff</h3>
       <p className="mt-1 text-sm text-neutral-600">
         GhoomAI researches and verifies — you book directly with providers.
+        Approve your itinerary above first; readiness requires an approved trip.
       </p>
       <button
         type="button"
@@ -384,7 +369,7 @@ export default function BookingHandoffPanel({
                   >
                     <p className="font-medium text-neutral-900">
                       <span className="mr-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-                        {item.kind}
+                        {statusLabel(item.kind)}
                       </span>
                       {item.title}
                     </p>
@@ -448,7 +433,7 @@ export default function BookingHandoffPanel({
                 className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3"
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                  {item.kind} · {item.status === "READY" ? "Live search results" : item.status === "NO_RESULTS" ? "No results" : "Search failed"}
+                  {statusLabel(item.kind)} · {item.status === "READY" ? "Live search results" : item.status === "NO_RESULTS" ? "No results" : "Search failed"}
                 </p>
                 <p className="font-medium text-neutral-900">{item.title}</p>
                 {item.reason && (
@@ -480,7 +465,7 @@ export default function BookingHandoffPanel({
                                 : "Search lead"}
                             </span>
                             {option.provider} · observed{" "}
-                            {option.observedAt.slice(0, 10)}
+                            {formatCheckedAt(option.observedAt)}
                           </p>
                           {option.snippet && (
                             <p className="mt-1 text-xs text-neutral-600">
@@ -492,7 +477,7 @@ export default function BookingHandoffPanel({
                               <a
                                 href={option.url}
                                 target="_blank"
-                                rel="noreferrer"
+                                rel="noopener noreferrer"
                                 className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
                               >
                                 Continue to provider
@@ -574,7 +559,7 @@ export default function BookingHandoffPanel({
                 </span>
               </p>
               <p className="text-xs text-neutral-500">
-                Checked at {recheck.checkedAt.slice(0, 19).replace("T", " ")} UTC ·{" "}
+                Checked {formatCheckedAt(recheck.checkedAt)} ·{" "}
                 {recheck.summary.verified} verified ·{" "}
                 {recheck.summary.needsAttention} needing attention ·{" "}
                 {recheck.summary.problem} problem ·{" "}
@@ -602,7 +587,7 @@ export default function BookingHandoffPanel({
                       >
                         <p className="font-medium text-neutral-900">
                           <span className="mr-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-                            {finding.status.replace("_", " ")}
+                            {statusLabel(finding.status)}
                           </span>
                           {finding.title}
                         </p>
@@ -630,7 +615,7 @@ export default function BookingHandoffPanel({
                       >
                         <p className="font-medium text-neutral-900">
                           <span className="mr-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-                            {option.status.replace(/_/g, " ")}
+                            {statusLabel(option.status)}
                           </span>
                           {option.title}
                         </p>

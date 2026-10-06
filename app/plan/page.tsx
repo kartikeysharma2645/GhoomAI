@@ -19,7 +19,8 @@ export default function PlanPage() {
       <TripForm />
 
       <footer className="mt-auto pt-8 text-xs text-neutral-400">
-        Live travel data via SerpApi · Route distances are not yet verified.
+        Live travel data via SerpApi · Verify with RealityCheck before
+        approving.
       </footer>
     </main>
   );

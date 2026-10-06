@@ -4,9 +4,9 @@ import {
   ConfigurationError,
   UpstreamError,
   ValidationError,
-} from "@/src/lib/errors";
-import { askContextSchema, resolveIntent } from "@/src/server/agent/intent";
-import { executeIntent } from "@/src/server/agent/responder";
+} from "../../../src/lib/errors";
+import { askContextSchema, resolveIntent } from "../../../src/server/agent/intent";
+import { executeIntent } from "../../../src/server/agent/responder";
 
 /**
  * Phase 3 GhoomAI interaction endpoint (single-turn, no history).

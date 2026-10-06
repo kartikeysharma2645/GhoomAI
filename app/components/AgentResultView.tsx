@@ -3,6 +3,7 @@
 import ItineraryView, { type TripPlanData } from "./ItineraryView";
 import RealityCheckReport, { type RealityCheckData } from "./RealityCheckReport";
 import ResultCards, { type AskResponseData } from "./ResultCards";
+import { formatCheckedAt, statusLabel } from "./agentChatHelpers";
 
 /**
  * Maps a typed `/api/agent` turn to rendered output (Phase 10 Prompt 3).
@@ -99,7 +100,7 @@ function OptionsAdapter({ discovery }: { discovery: unknown }) {
                     <a
                       href={o.url}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="mt-1 inline-block text-sm font-medium text-sky-700 hover:underline"
                     >
                       Continue to provider
@@ -125,7 +126,7 @@ function RecheckAdapter({ recheck }: { recheck: unknown }) {
   const summary = isRecord(recheck.summary) ? recheck.summary : null;
   const options = Array.isArray(recheck.options) ? recheck.options.filter(isRecord) : [];
   return (
-    <AdapterCard title={`Final check: ${String(recheck.verdict ?? "?")}`}>
+    <AdapterCard title={`Final check: ${statusLabel(recheck.verdict)}`}>
       {summary && (
         <p className="text-sm">
           {String(summary.verified ?? 0)} verified · {String(summary.needsAttention ?? 0)} needing
@@ -135,7 +136,7 @@ function RecheckAdapter({ recheck }: { recheck: unknown }) {
       {options.map((o, i) => (
         <p key={String(o.optionId ?? i)} className="text-sm">
           <span className="font-medium">{String(o.title ?? "?")}</span>
-          {" — "}{String(o.status ?? "?").replace(/_/g, " ")}
+          {" — "}{statusLabel(o.status)}
         </p>
       ))}
       <p className="text-xs text-neutral-500">Freshly checked — not a booking.</p>
@@ -159,7 +160,7 @@ function AnalysisAdapter({ analysis }: { analysis: unknown }) {
     ? analysis.candidates.filter(isRecord)
     : [];
   return (
-    <AdapterCard title={`Visual identification: ${String(analysis.status ?? "?")}`}>
+    <AdapterCard title={`Visual identification: ${statusLabel(analysis.status)}`}>
       {candidates.slice(0, 3).map((c, i) => (
         <p key={i} className="text-sm">
           <span className="font-medium">{String(c.name ?? "?")}</span>
@@ -187,7 +188,7 @@ function SituationsAdapter({ liveCheck }: { liveCheck: unknown }) {
     <AdapterCard title={`Live situations (${situations.length})`}>
       {situations.slice(0, 5).map((s, i) => (
         <p key={String(s.id ?? i)} className="text-sm">
-          <span className="font-medium">{String(s.type ?? "Notice")}</span>
+          <span className="font-medium">{statusLabel(s.type)}</span>
           {typeof s.summary === "string" ? ` — ${s.summary}` : ""}
         </p>
       ))}

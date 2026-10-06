@@ -202,7 +202,7 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
                     <a
                       href={s.link}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="hover:underline"
                     >
                       {s.title}
@@ -213,6 +213,14 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
             )}
           </div>
         )}
+
+      {plan.days.length === 0 && (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-neutral-600">
+            No days planned yet. Adjust your destination or dates and plan again.
+          </p>
+        </div>
+      )}
 
       {plan.days.map((day) => (
         <div

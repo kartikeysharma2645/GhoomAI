@@ -150,7 +150,7 @@ function PlaceCard({ place }: { place: AskResultItem }) {
           <a
             href={website}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="mt-1 inline-block text-sm font-medium text-sky-700 hover:underline"
           >
             {domainOf(website)}
@@ -168,7 +168,7 @@ function SearchCard({ item }: { item: AskResultItem }) {
         <a
           href={item.link}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="font-semibold text-sky-800 hover:underline"
         >
           {item.title}
@@ -193,6 +193,19 @@ const ENGINE_LABEL: Record<AskResponseData["engine"], string> = {
 };
 
 export default function ResultCards({ data }: { data: AskResponseData }) {
+  if (data.results.length === 0) {
+    return (
+      <section className="mt-6 space-y-3">
+        <p className="text-xs font-medium uppercase tracking-widest text-neutral-500">
+          Live via {ENGINE_LABEL[data.engine]}
+        </p>
+        <p className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+          No live results right now. Try a broader search or different wording —
+          nothing is shown rather than guessed.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="mt-6 space-y-3">
       <p className="text-xs font-medium uppercase tracking-widest text-neutral-500">

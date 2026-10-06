@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { postJson } from "./request";
 
 /**
  * Travel-oriented place identification UI (Phase 8 Prompt 1).
@@ -253,15 +254,11 @@ export default function VisionAnalyzer() {
     try {
       const form = new FormData();
       form.append("image", file);
-      const res = await fetch("/api/vision/analyze", {
-        method: "POST",
-        body: form,
-      });
-      const json: unknown = await res.json();
+      const { status, json } = await postJson("/api/vision/analyze", form);
       if (isVisionUnavailable(json)) {
         setVisionUnavailable(true);
       }
-      if (res.status !== 200) {
+      if (status !== 200) {
         throw new Error(errorMessage(json, "Something went wrong."));
       }
       const parsed = parseVisionResponse(json);
@@ -285,15 +282,11 @@ export default function VisionAnalyzer() {
     try {
       const form = new FormData();
       form.append("image", file);
-      const res = await fetch("/api/vision/place", {
-        method: "POST",
-        body: form,
-      });
-      const json: unknown = await res.json();
+      const { status, json } = await postJson("/api/vision/place", form);
       if (isVisionUnavailable(json)) {
         setVisionUnavailable(true);
       }
-      if (res.status !== 200) {
+      if (status !== 200) {
         throw new Error(errorMessage(json, "Something went wrong."));
       }
       const parsed = parsePlaceResponse(json);
@@ -316,6 +309,9 @@ export default function VisionAnalyzer() {
       >
         Photo of a place
       </label>
+      <p className="mt-1 text-xs text-neutral-500">
+        For example, a photo of a monument, temple facade, or street scene.
+      </p>
       <input
         ref={inputRef}
         id="vision-image"
@@ -553,7 +549,7 @@ export default function VisionAnalyzer() {
             </p>
           </div>
 
-          {place.nearby.length > 0 && (
+          {place.nearby.length > 0 ? (
             <div>
               <h4 className="text-sm font-medium text-neutral-700">Nearby</h4>
               <ol className="mt-1 space-y-2">
@@ -575,6 +571,10 @@ export default function VisionAnalyzer() {
                 ))}
               </ol>
             </div>
+          ) : (
+            <p className="text-xs text-neutral-500">
+              No nearby places found in the current live search.
+            </p>
           )}
 
           {place.photography && (

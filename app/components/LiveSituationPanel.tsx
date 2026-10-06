@@ -6,6 +6,7 @@ import RealityCheckReport, {
   type RealityCheckData,
 } from "./RealityCheckReport";
 import type { LiveTripData } from "./LiveTripView";
+import { postJson } from "./request";
 
 /**
  * Live situation panel (Phase 7 Step 1).
@@ -173,13 +174,11 @@ export default function LiveSituationPanel({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/trips/active/live-check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trip }),
-      });
-      const json: unknown = await res.json();
-      if (res.status !== 200) {
+      const { status: httpStatus, json } = await postJson(
+        "/api/trips/active/live-check",
+        { trip },
+      );
+      if (httpStatus !== 200) {
         const message =
           isRecord(json) && isRecord(json.error) && typeof json.error.message === "string"
             ? json.error.message
@@ -205,13 +204,11 @@ export default function LiveSituationPanel({
     setProposalLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/trips/active/reschedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trip, liveCheck: result }),
-      });
-      const json: unknown = await res.json();
-      if (res.status !== 200) {
+      const { status: httpStatus, json } = await postJson(
+        "/api/trips/active/reschedule",
+        { trip, liveCheck: result },
+      );
+      if (httpStatus !== 200) {
         const message =
           isRecord(json) && isRecord(json.error) && typeof json.error.message === "string"
             ? json.error.message
@@ -252,13 +249,11 @@ export default function LiveSituationPanel({
     setApplying(true);
     setError(null);
     try {
-      const res = await fetch("/api/trips/active/reschedule/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trip, proposal, changeIds }),
-      });
-      const json: unknown = await res.json();
-      if (res.status === 409) {
+      const { status: httpStatus, json } = await postJson(
+        "/api/trips/active/reschedule/apply",
+        { trip, proposal, changeIds },
+      );
+      if (httpStatus === 409) {
         const message =
           isRecord(json) && isRecord(json.error) && typeof json.error.message === "string"
             ? json.error.message
@@ -267,7 +262,7 @@ export default function LiveSituationPanel({
           `${message} Please run a fresh live check for a new proposal.`,
         );
       }
-      if (res.status !== 200) {
+      if (httpStatus !== 200) {
         const message =
           isRecord(json) && isRecord(json.error) && typeof json.error.message === "string"
             ? json.error.message
@@ -298,13 +293,11 @@ export default function LiveSituationPanel({
   async function runFreshCheck(target: LiveTripData) {
     setFreshCheckLoading(true);
     try {
-      const res = await fetch("/api/trips/reality-check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: target.plan }),
-      });
-      const json: unknown = await res.json();
-      if (res.status !== 200) return;
+      const { status: httpStatus, json } = await postJson(
+        "/api/trips/reality-check",
+        { plan: target.plan },
+      );
+      if (httpStatus !== 200) return;
       const parsed = parseRealityCheckResponse(json);
       if (parsed) setFreshCheck(parsed);
     } catch {

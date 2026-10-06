@@ -41,8 +41,8 @@ export default function HomePage() {
       </p>
 
       <footer className="mt-auto pt-8 text-xs text-neutral-400">
-        Live travel data via SerpApi · Verified answers arrive with
-        RealityCheck in a later phase.
+        Live travel data via SerpApi · Plans are verified with RealityCheck
+        before you approve them.
       </footer>
     </main>
   );

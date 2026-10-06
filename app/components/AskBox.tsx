@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { postJson } from "./request";
 import ResultCards, { type AskResponseData } from "./ResultCards";
 
 /**
@@ -20,6 +21,17 @@ const INTENT_LABEL: Record<AskResponseData["intent"], string> = {
   general_search: "Search",
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function errorMessage(json: unknown, fallback: string): string {
+  if (isRecord(json) && isRecord(json.error) && typeof json.error.message === "string") {
+    return json.error.message;
+  }
+  return fallback;
+}
+
 export default function AskBox() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,20 +44,18 @@ export default function AskBox() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed }),
+      const { status, json } = await postJson("/api/ask", {
+        message: trimmed,
       });
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: AskResponseData;
-        error?: { message?: string };
-      };
-      if (!res.ok || !json.ok || !json.data) {
-        throw new Error(json.error?.message ?? "Something went wrong.");
+      if (
+        status !== 200 ||
+        !isRecord(json) ||
+        json.ok !== true ||
+        !isRecord(json.data)
+      ) {
+        throw new Error(errorMessage(json, "Something went wrong."));
       }
-      setAnswer(json.data);
+      setAnswer(json.data as unknown as AskResponseData);
     } catch (err) {
       setAnswer(null);
       setError(err instanceof Error ? err.message : "Request failed.");
