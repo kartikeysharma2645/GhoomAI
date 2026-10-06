@@ -153,7 +153,7 @@ function PlaceCard({ place }: { place: AskResultItem }) {
             rel="noopener noreferrer"
             className="mt-1 inline-block text-sm font-medium text-sky-700 hover:underline"
           >
-            {domainOf(website)}
+            View Place ↗ · {domainOf(website)}
           </a>
         )}
       </div>

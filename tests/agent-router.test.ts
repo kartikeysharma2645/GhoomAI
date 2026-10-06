@@ -60,6 +60,39 @@ describe("resolveAgentIntent capability routing", () => {
     );
   });
 
+  it("routes replacement and pace requests to fix_trip", () => {
+    expect(
+      resolveAgentIntent(
+        "Replace Hawa Mahal on Day 2 with another historical place",
+        PLAN_CTX,
+      ).intent,
+    ).toBe("fix_trip");
+    expect(
+      resolveAgentIntent(
+        "Remove City Palace from Day 2 and find a suitable alternative",
+        PLAN_CTX,
+      ).intent,
+    ).toBe("fix_trip");
+    expect(
+      resolveAgentIntent(
+        "Change the afternoon activity on Day 2 to something related to history",
+        PLAN_CTX,
+      ).intent,
+    ).toBe("fix_trip");
+    expect(
+      resolveAgentIntent("Day 2 is too packed. Make it more relaxed", PLAN_CTX).intent,
+    ).toBe("fix_trip");
+  });
+
+  it("routes the RealityCheck action label to check_trip", () => {
+    expect(resolveAgentIntent("Run RealityCheck", PLAN_CTX).intent).toBe(
+      "check_trip",
+    );
+    expect(resolveAgentIntent("Run reality check", PLAN_CTX).intent).toBe(
+      "check_trip",
+    );
+  });
+
   it("preserves Phase 3 search behavior through delegation", () => {
     const hotels = resolveAgentIntent("Find good hotels in Jaipur");
     expect(hotels.intent).toBe("find_hotels");
@@ -103,6 +136,19 @@ describe("resolveAgentIntent capability routing", () => {
     const progress = resolveAgentIntent("What's next?", PLAN_CTX);
     expect(progress.intent).toBe("needs_clarification");
     expect(progress.missing).toContain("active_trip");
+  });
+
+  it("routes fully-specified planning requests to plan_trip", () => {
+    const variants = [
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      "I want to spend 3 days in Jaipur with two adults. Our budget is ₹20,000 and we like history and food.",
+      "Help me plan Jaipur for 3 days for two people. We have ₹20,000 and enjoy historical places and local food.",
+    ];
+    for (const message of variants) {
+      const routed = resolveAgentIntent(message);
+      expect(routed.intent).toBe("plan_trip");
+      expect(routed.missing).toEqual([]);
+    }
   });
 
   it("routes unrelated input to out_of_scope, never a guessed action", () => {

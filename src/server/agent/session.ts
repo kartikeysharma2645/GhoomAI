@@ -10,6 +10,7 @@ import { tripStatusSchema } from "../livetrip/lifecycle";
 import { activeTripSchema } from "../livetrip/activeTrip";
 import { liveSituationResultSchema } from "../livetrip/situation";
 import { realityCheckResultSchema } from "../realitycheck/checks";
+import { tripPlanRequestSchema } from "../trips/requirements";
 import { tripPlanSchema } from "../trips/plan";
 
 /**
@@ -98,6 +99,14 @@ export const conversationSessionSchema = z.object({
   activeTrip: activeTripSchema.optional(),
   /** Latest live-situation result, basis for reschedule proposals. */
   latestLiveCheck: liveSituationResultSchema.optional(),
+  /**
+   * Partial trip requirements from a plan_trip turn that ended in
+   * needs_input. Lets the next turn continue planning (merging newly
+   * stated fields) instead of starting over. Cleared when a plan is
+   * produced. Context only — every merged request is revalidated by the
+   * planning capability before use.
+   */
+  pendingPlanRequest: tripPlanRequestSchema.optional(),
   pendingConfirmation: pendingConfirmationSchema.optional(),
 });
 

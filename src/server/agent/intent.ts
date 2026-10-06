@@ -94,18 +94,13 @@ const MAX_DESTINATION_WORDS = 4;
 const MAX_DESTINATION_LENGTH = 60;
 
 /**
- * Deliberately narrow destination extraction: a capitalized phrase after
- * in/at/near/for, cut at the first lowercase word. Returns undefined when
- * no confident destination is found — the caller must not invent one.
+ * Takes the leading capitalized words of a captured phrase, cutting at the
+ * first lowercase word. Returns undefined when nothing confident remains.
  */
-export function extractDestination(message: string): string | undefined {
-  const normalized = message.replace(/\s+/g, " ").trim();
-  const match = normalized.match(
-    /\b(?:in|at|near|for)\b\s+([A-Za-z][A-Za-z\s\-']{0,80})/,
-  );
-  if (!match) return undefined;
+function takeCapitalizedPhrase(capture: string | undefined): string | undefined {
+  if (!capture) return undefined;
   const parts: string[] = [];
-  for (const word of match[1].trim().split(/\s+/)) {
+  for (const word of capture.trim().split(/\s+/)) {
     if (parts.length >= MAX_DESTINATION_WORDS) break;
     if (/^[A-Z]/.test(word)) {
       parts.push(word.replace(/[.,;!?]+$/, ""));
@@ -117,6 +112,34 @@ export function extractDestination(message: string): string | undefined {
   const name = parts.join(" ");
   if (name.length < 2 || name.length > MAX_DESTINATION_LENGTH) return undefined;
   return name;
+}
+
+/**
+ * Deliberately narrow destination extraction: a capitalized phrase after
+ * in/at/near/for/to (or directly after "plan"), cut at the first lowercase
+ * word. Scans preposition positions in order and returns the first confident
+ * phrase, so an early non-place phrase ("for 2 adults", "to spend", "to
+ * visit") never shadows a real destination later in the message. Returns
+ * undefined when no confident destination is found — the caller must not
+ * invent one.
+ */
+export function extractDestination(message: string): string | undefined {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  const prepositions = /\b(?:in|at|near|for|to)\b/g;
+  for (const preposition of normalized.matchAll(prepositions)) {
+    const rest = normalized.slice(
+      (preposition.index ?? 0) + preposition[0].length,
+    );
+    const capture = rest.match(/^\s+([A-Za-z][A-Za-z\s\-']{0,80})/);
+    const name = takeCapitalizedPhrase(capture?.[1]);
+    if (name) return name;
+  }
+  // Fallback for direct phrasing with no preposition ("plan Jaipur ..."):
+  // a capitalized phrase immediately after "plan".
+  const barePlan = normalized.match(/\bplan\b\s+([A-Z][A-Za-z\s\-']{0,40})/);
+  const fallback = takeCapitalizedPhrase(barePlan?.[1]);
+  if (fallback) return fallback;
+  return undefined;
 }
 
 function toIsoDate(date: Date): string {

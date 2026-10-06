@@ -158,12 +158,18 @@ const ACTIVATE_PATTERNS = [
 const FIX_PATTERNS = [
   /\b(fix|correct|repair|resolv(e|ing))\b.{0,30}\b(problems?|issues?|errors?|findings?|plans?|itinerar(y|ies)|trips?)\b/,
   /\b(propose|suggest|get|show)\b.{0,20}\b(fix|fixes|correction)\b/,
+  /\b(replace|replacement|swap|swapping|substitut(e|ion|ing))\b/,
+  /\bremove\b.{0,80}\b(alternative|another|replacement|instead)\b/,
+  /\bchange\b.{0,30}\bactivit(y|ies)\b/,
+  /\btoo\s+packed\b/,
+  /\bmore\s+relaxed\b/,
 ];
 
 const CHECK_PATTERNS = [
   /\b(check|verify|validate|review)\b.{0,30}\b(itinerar(y|ies)|it\b|plans?|trips?|schedules?)\b/,
   /\b(realistic|feasible|practical|possible)\b/,
   /\bsense-?check\b/,
+  /\breality[ -]?check\b/,
 ];
 
 const PLAN_PATTERNS = [

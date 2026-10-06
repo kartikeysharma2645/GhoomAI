@@ -531,3 +531,68 @@ describe("fixer request validation", () => {  it("rejects invalid requests", asy
     );
   });
 });
+
+describe("fixer user-requested replacements", () => {
+  function verifiedCheck(itemId: string, title: string, placeId: string) {
+    return check([
+      {
+        itemId,
+        kind: "attraction",
+        title,
+        status: "VERIFIED",
+        plannedEvidence: placeEvidence(placeId),
+        facts: [],
+        reasons: ["Re-identified by stable place identifier."],
+      },
+    ]);
+  }
+
+  it("replaces a VERIFIED item on explicit request without inventing a verdict", async () => {
+    const fake = fakeClient(() => GOOD_POOL);
+    const res = await fixTrip(
+      {
+        plan: plan(),
+        check: verifiedCheck("d1-a1", "Old Fort", "old"),
+        replaceItemIds: ["d1-a1"],
+      },
+      asClient(fake),
+      NOW,
+    );
+    expect(res.changes).toHaveLength(1);
+    expect(res.changes[0]?.itemId).toBe("d1-a1");
+    expect(res.changes[0]?.replacement.title).toBe("New Palace");
+    // The recorded finding keeps the real status; nothing was fabricated.
+    expect(res.changes[0]?.originalFinding.status).toBe("VERIFIED");
+    expect(res.changes[0]?.originalFinding.summary).toMatch(/asked to replace/i);
+    // Nothing else in the plan was touched.
+    expect(res.unchangedItemIds).toContain("d2-a1");
+  });
+
+  it("marks requested ids without a verification record unfixable", async () => {
+    const fake = fakeClient(() => GOOD_POOL);
+    const res = await fixTrip(
+      {
+        plan: plan(),
+        check: verifiedCheck("d1-a1", "Old Fort", "old"),
+        replaceItemIds: ["d1-a1", "ghost-1", "ghost-2"],
+      },
+      asClient(fake),
+      NOW,
+    );
+    expect(res.changes.map((c) => c.itemId)).toEqual(["d1-a1"]);
+    expect(
+      res.unfixable.some((u) => u.reason.includes("No verification record")),
+    ).toBe(true);
+  });
+
+  it("leaves VERIFIED items alone without replaceItemIds", async () => {
+    const fake = fakeClient(() => GOOD_POOL);
+    const res = await fixTrip(
+      { plan: plan(), check: verifiedCheck("d1-a1", "Old Fort", "old") },
+      asClient(fake),
+      NOW,
+    );
+    expect(res.changes).toEqual([]);
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+  });
+});

@@ -3,11 +3,34 @@ import {
   APPROVAL_CTA,
   buildConfirmPayload,
   cancelPayload,
+  externalPlaceUrl,
   isAcceptedImage,
   requiresApproval,
 } from "../app/components/agentChatHelpers";
 
 describe("agent chat helpers", () => {
+  it("returns the first trustworthy evidence URL and nothing else", () => {
+    expect(
+      externalPlaceUrl([
+        { sourceUrl: "https://example.com/fort" },
+        { sourceUrl: "https://other.example/palace" },
+      ]),
+    ).toBe("https://example.com/fort");
+    expect(externalPlaceUrl([{ sourceUrl: undefined }, {}])).toBeUndefined();
+    expect(externalPlaceUrl([])).toBeUndefined();
+    expect(externalPlaceUrl(undefined)).toBeUndefined();
+  });
+
+  it("never fabricates or passes through unsafe URLs", () => {
+    expect(externalPlaceUrl([{ sourceUrl: "javascript:alert(1)" }])).toBeUndefined();
+    expect(externalPlaceUrl([{ sourceUrl: "/relative/path" }])).toBeUndefined();
+    expect(externalPlaceUrl([{ sourceUrl: "not a url" }])).toBeUndefined();
+    expect(externalPlaceUrl([{ sourceUrl: 42 }])).toBeUndefined();
+    expect(externalPlaceUrl([{ sourceUrl: "http://example.com/ok" }])).toBe(
+      "http://example.com/ok",
+    );
+  });
+
   it("builds an activation confirm payload", () => {
     expect(
       buildConfirmPayload({

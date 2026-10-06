@@ -35,8 +35,13 @@ import {
   contextFromSession,
   resolveAgentIntent,
 } from "./router";
+import {
+  hasPaceChangeLanguage,
+  hasReplacementLanguage,
+  resolveFixTargets,
+} from "./fixTargeting";
 import { executeIntent } from "./responder";
-import { resolveIntent } from "./intent";
+import { extractDestination, resolveIntent } from "./intent";
 import { analyzeImage } from "../vision/service";
 
 /**
@@ -116,6 +121,27 @@ const CONFIRM_RE =
 const CANCEL_RE =
   /^(no|nope|cancel|cancelled|canceled|stop|never mind|don't|dont|not now)\b/;
 
+/**
+ * Extracts trip interests stated in a message, using the same vocabulary
+ * the planner uses. Pure and deterministic; returns [] when none stated.
+ */
+export function extractInterests(message: string): string[] {
+  const interestMatchers: Record<string, RegExp> = {
+    history: /\b(histor|heritage|fort|palace|museum)\w*\b/i,
+    food: /\b(food|cuisine|restaurant|dining)\b/i,
+    photography: /\b(photo|photography|instagram)\b/i,
+    nature: /\b(nature|park|wildlife)\b/i,
+    shopping: /\b(shop|market|souvenir)\b/i,
+    nightlife: /\b(nightlife|night life|pub|bar|club)\b/i,
+  };
+  const interests: string[] = [];
+  for (const interest of TRIP_INTERESTS) {
+    const matcher = interestMatchers[interest];
+    if (matcher && matcher.test(message)) interests.push(interest);
+  }
+  return interests;
+}
+
 const ORDINALS: Array<[RegExp, number]> = [
   [/\bfirst\b/, 1],
   [/\bsecond\b/, 2],
@@ -135,21 +161,59 @@ function extractOrdinal(message: string): number | null {
   return null;
 }
 
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+
+/** Parses a digit or English number word (one–twelve) into a count. */
+function parseCount(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  if (/^\d+$/.test(raw)) return Number.parseInt(raw, 10);
+  return NUMBER_WORDS[raw.toLowerCase()];
+}
+
+const COUNT_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
+
+/**
+ * Merges freshly extracted planning fields over a pending draft from a
+ * previous needs_input turn. Only defined fields overwrite. A newly stated
+ * destination different from the draft's starts a fresh trip (the old
+ * draft's dates and party may not apply); otherwise fields accumulate.
+ * Pure and deterministic.
+ */
+export function mergePlanRequest(
+  draft: TripPlanRequest | undefined,
+  fresh: TripPlanRequest,
+): TripPlanRequest {
+  if (!draft) return fresh;
+  if (
+    fresh.destination !== undefined &&
+    draft.destination !== undefined &&
+    fresh.destination !== draft.destination
+  ) {
+    return fresh;
+  }
+  return { ...draft, ...fresh };
+}
+
 /** Deterministic planning-field extraction. Only what the text states. */
 export function extractPlanRequest(message: string): TripPlanRequest {
   const request: TripPlanRequest = {};
-  const destinationMatch = message.match(
-    /\b(?:in|to|for|around|across)\b\s+([A-Za-z][A-Za-z\s\-']{0,80})/,
-  );
-  if (destinationMatch) {
-    const parts: string[] = [];
-    for (const word of destinationMatch[1].trim().split(/\s+/)) {
-      if (parts.length >= 4) break;
-      if (/^[A-Z]/.test(word)) parts.push(word.replace(/[.,;!?]+$/, ""));
-      else break;
-    }
-    if (parts.length > 0) request.destination = parts.join(" ");
-  }
+  // Single canonical destination extractor (shared with intent routing),
+  // so the router gate and the field extraction can never disagree.
+  const destination = extractDestination(message);
+  if (destination) request.destination = destination;
   const duration = message.match(/(\d+)\s*-?\s*(?:[a-z]+\s+){0,2}days?\b/i);
   if (duration) request.durationDays = Number.parseInt(duration[1], 10);
   const dates = message.match(/\d{4}-\d{2}-\d{2}/g);
@@ -158,11 +222,15 @@ export function extractPlanRequest(message: string): TripPlanRequest {
     request.endDate = dates[1];
   }
   const adults = message.match(
-    /(\d+)\s*(adults?|people|persons|travell?ers?|guests?)/i,
+    new RegExp(`(\\d+|${COUNT_WORDS})\\s*(adults?|people|persons|travell?ers?|guests?)`, "i"),
   );
-  if (adults) request.adults = Number.parseInt(adults[1], 10);
-  const children = message.match(/(\d+)\s*(child|children|kids?)/i);
-  if (children) request.children = Number.parseInt(children[1], 10);
+  const adultCount = parseCount(adults?.[1]);
+  if (adultCount !== undefined) request.adults = adultCount;
+  const children = message.match(
+    new RegExp(`(\\d+|${COUNT_WORDS})\\s*(child|children|kids?)`, "i"),
+  );
+  const childCount = parseCount(children?.[1]);
+  if (childCount !== undefined) request.children = childCount;
   const budget = message.match(
     /(?:budget|under|up\s*to|within|max)\s*(?:inr|rs|₹)?\s*([\d,]+)|(?:inr|rs|₹)\s*([\d,]+)|([\d,]+)\s*(?:inr|rs|rupees?)/i,
   );
@@ -173,19 +241,7 @@ export function extractPlanRequest(message: string): TripPlanRequest {
       request.budget = { amount };
     }
   }
-  const interests: string[] = [];
-  const interestMatchers: Record<string, RegExp> = {
-    history: /\b(histor|heritage|fort|palace|museum)\w*\b/i,
-    food: /\b(food|cuisine|restaurant|dining)\b/i,
-    photography: /\b(photo|photography|instagram)\b/i,
-    nature: /\b(nature|park|wildlife)\b/i,
-    shopping: /\b(shop|market|souvenir)\b/i,
-    nightlife: /\b(nightlife|night life|pub|bar|club)\b/i,
-  };
-  for (const interest of TRIP_INTERESTS) {
-    const matcher = interestMatchers[interest];
-    if (matcher && matcher.test(message)) interests.push(interest);
-  }
+  const interests = extractInterests(message);
   if (interests.length > 0) {
     request.interests = interests.slice(0, 6) as TripPlanRequest["interests"];
   }
@@ -451,7 +507,7 @@ export async function orchestrateTurn(
               capability: "applyReplanProposal",
               message: `Applied ${result.appliedChangeIds.length} fix(es). The plan changed, so run RealityCheck again before approving.`,
               data: { plan: result.plan, appliedChangeIds: result.appliedChangeIds },
-              followUps: ["Check the updated itinerary"],
+              followUps: ["Run RealityCheck"],
             },
             {
               activePlan: result.plan,
@@ -527,9 +583,30 @@ export async function orchestrateTurn(
 
   // ---- Route and dispatch (exactly one capability action) ----
   const routed = resolveAgentIntent(trimmed, contextFromSession(working), now);
-  const base = { intent: routed.intent } as const;
 
-  if (routed.intent === "needs_clarification") {
+  // Clarification continuation: when a plan_trip turn previously ended in
+  // needs_input, its partial requirements wait in pendingPlanRequest. If the
+  // new message classifies as ambiguous (needs_clarification/out_of_scope)
+  // but states fresh planning fields, resume planning with the merged
+  // request instead of dropping context. Explicit capability intents always
+  // take precedence, so unrelated requests are never hijacked.
+  const draft = working.pendingPlanRequest;
+  let effectiveIntent = routed.intent;
+  let planRequestOverride: TripPlanRequest | undefined;
+  if (
+    draft &&
+    (routed.intent === "needs_clarification" ||
+      routed.intent === "out_of_scope")
+  ) {
+    const fresh = extractPlanRequest(trimmed);
+    if (Object.keys(fresh).length > 0) {
+      effectiveIntent = "plan_trip";
+      planRequestOverride = mergePlanRequest(draft, fresh);
+    }
+  }
+  const base = { intent: effectiveIntent } as const;
+
+  if (effectiveIntent === "needs_clarification") {
     return finish(
       {
         ...base,
@@ -542,7 +619,7 @@ export async function orchestrateTurn(
       { capability: "none", status: "proposed" },
     );
   }
-  if (routed.intent === "out_of_scope") {
+  if (effectiveIntent === "out_of_scope") {
     return finish(
       {
         ...base,
@@ -557,7 +634,7 @@ export async function orchestrateTurn(
   }
 
   try {
-    switch (routed.intent) {
+    switch (effectiveIntent) {
       case "find_hotels":
       case "discover_places":
       case "general_search": {
@@ -581,7 +658,10 @@ export async function orchestrateTurn(
         );
       }
       case "plan_trip": {
-        const result = await planTrip(extractPlanRequest(trimmed), client, now);
+        const request =
+          planRequestOverride ??
+          mergePlanRequest(draft, extractPlanRequest(trimmed));
+        const result = await planTrip(request, client, now);
         if (result.status === "needs_input") {
           return finish(
             {
@@ -592,7 +672,7 @@ export async function orchestrateTurn(
               data: { missing: result.missing },
               followUps: [],
             },
-            {},
+            { pendingPlanRequest: request },
             { capability: "planTrip", status: "proposed" },
           );
         }
@@ -604,9 +684,9 @@ export async function orchestrateTurn(
             capability: "planTrip",
             message: `Planned a ${days}-day trip to ${result.plan.destination}. Run RealityCheck next to verify it before approving.`,
             data: { plan: result.plan },
-            followUps: ["Check the itinerary", "Find booking options"],
+            followUps: ["Run RealityCheck", "Find booking options"],
           },
-          { activePlan: result.plan, tripStatus: "PLANNED" },
+          { activePlan: result.plan, tripStatus: "PLANNED", pendingPlanRequest: undefined },
           { capability: "planTrip", status: "completed" },
         );
       }
@@ -656,13 +736,74 @@ export async function orchestrateTurn(
               outcome: "clarification",
               capability: "none",
               message: "I need a checked itinerary first. Run RealityCheck, then ask me to propose fixes.",
-              followUps: ["Check the itinerary"],
+              followUps: ["Run RealityCheck"],
             },
             {},
             { capability: "none", status: "proposed" },
           );
         }
-        const proposal = await fixTrip({ plan, check }, client, now);
+        const targeting = resolveFixTargets(plan, trimmed);
+        if (targeting.kind === "ambiguous") {
+          const listed =
+            targeting.candidates.length > 0
+              ? targeting.candidates
+                  .map((c) => `Day ${c.dayNumber}: ${c.title}`)
+                  .join("; ")
+              : null;
+          return finish(
+            {
+              ...base,
+              outcome: "clarification",
+              capability: "none",
+              message: listed
+                ? `Which activity should I replace? ${listed}. Name it and mention what kind of place you want instead.`
+                : "I couldn't find a replaceable activity matching that description. Tell me the day number and the activity title.",
+              followUps: [],
+            },
+            {},
+            { capability: "none", status: "proposed" },
+          );
+        }
+        if (
+          !hasReplacementLanguage(trimmed) &&
+          hasPaceChangeLanguage(trimmed)
+        ) {
+          return finish(
+            {
+              ...base,
+              outcome: "clarification",
+              capability: "none",
+              message:
+                "I can replace specific activities with verified alternatives, but changing the overall pace needs a fresh plan. Tell me which activity to replace and what kind of place you prefer.",
+              followUps: [],
+            },
+            {},
+            { capability: "none", status: "proposed" },
+          );
+        }
+        const replaceItemIds =
+          targeting.kind === "targets" ? targeting.itemIds : undefined;
+        const interests = extractInterests(trimmed);
+        const proposal = await fixTrip(
+          {
+            plan,
+            check,
+            requirements: {
+              destination: plan.destination,
+              dateMode: plan.dateMode,
+              ...(plan.startDate ? { startDate: plan.startDate } : {}),
+              ...(plan.endDate ? { endDate: plan.endDate } : {}),
+              durationDays: plan.durationDays,
+              adults: plan.party.adults,
+              children: plan.party.children,
+              interests,
+              pace: "balanced",
+            },
+            ...(replaceItemIds ? { replaceItemIds } : {}),
+          },
+          client,
+          now,
+        );
         if (proposal.changes.length === 0) {
           return finish(
             {
@@ -684,7 +825,9 @@ export async function orchestrateTurn(
             capability: "fixTrip",
             message: `I found ${proposal.changes.length} verified fix(es). Nothing is applied yet — confirm to apply them, or pick specific ones.`,
             data: { proposal },
-            followUps: ["Apply the fixes", "Keep the original plan"],
+            // Apply/Keep travel through the Confirm/Cancel buttons built
+            // from confirmationRequired, so no text follow-up may imply them.
+            followUps: [],
             confirmationRequired: {
               action: "apply_fix",
               summary: `Apply ${proposal.changes.length} proposed fix(es) to the itinerary.`,
@@ -710,7 +853,7 @@ export async function orchestrateTurn(
               outcome: "clarification",
               capability: "none",
               message: "Booking discovery needs an approved itinerary. Approve your trip plan first.",
-              followUps: ["Check the itinerary"],
+              followUps: ["Run RealityCheck"],
             },
             {},
             { capability: "none", status: "proposed" },
@@ -800,7 +943,7 @@ export async function orchestrateTurn(
               outcome: "clarification",
               capability: "none",
               message: "The final pre-trip check needs an approved itinerary.",
-              followUps: ["Check the itinerary"],
+              followUps: ["Run RealityCheck"],
             },
             {},
             { capability: "none", status: "proposed" },
@@ -842,7 +985,7 @@ export async function orchestrateTurn(
               outcome: "clarification",
               capability: "none",
               message: "Your trip is not ready to start yet. Approve your itinerary first, then ask me to start the trip.",
-              followUps: ["Check the itinerary"],
+              followUps: ["Run RealityCheck"],
             },
             {},
             { capability: "none", status: "proposed" },

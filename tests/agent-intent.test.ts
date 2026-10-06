@@ -71,6 +71,30 @@ describe("destination extraction", () => {
     expect(intent.intent).toBe("find_hotels");
     expect(intent.query).toBe("Find good hotels");
   });
+
+  it("extracts destinations after 'to' without shadowing", () => {
+    expect(
+      extractDestination(
+        "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      ),
+    ).toBe("Jaipur");
+    expect(
+      extractDestination("I want to spend 3 days in Jaipur with two adults"),
+    ).toBe("Jaipur");
+    expect(extractDestination("Find hotels to visit in Udaipur")).toBe("Udaipur");
+  });
+
+  it("extracts a bare destination after 'plan' with no preposition", () => {
+    expect(
+      extractDestination("Help me plan Jaipur for 3 days for two people"),
+    ).toBe("Jaipur");
+  });
+
+  it("still refuses to invent a destination", () => {
+    expect(extractDestination("Plan a trip for me")).toBeUndefined();
+    expect(extractDestination("Plan a 3-day trip")).toBeUndefined();
+    expect(extractDestination("I want to travel somewhere nice")).toBeUndefined();
+  });
 });
 
 describe("hotel dates", () => {

@@ -267,3 +267,19 @@ export function formatCheckedAt(value: unknown): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}, ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`;
 }
+
+/**
+ * First trustworthy absolute http(s) URL across an item's evidence, if any.
+ * Hotels carry no provider URL in the normalized data, so hotel entries
+ * correctly yield undefined (render no link) rather than a guessed URL.
+ */
+export function externalPlaceUrl(
+  evidence: Array<{ sourceUrl?: unknown }> | undefined,
+): string | undefined {
+  if (!Array.isArray(evidence)) return undefined;
+  for (const entry of evidence) {
+    const url = isRecord(entry) ? entry.sourceUrl : undefined;
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) return url;
+  }
+  return undefined;
+}

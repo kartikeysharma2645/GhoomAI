@@ -6,6 +6,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UpstreamError } from "../src/lib/errors";
 import {
+  extractPlanRequest,
+  mergePlanRequest,
   orchestrateTurn,
   type ConfirmPayload,
 } from "../src/server/agent/orchestrator";
@@ -16,6 +18,7 @@ import {
 } from "../src/server/agent/session";
 import type { SerpApiClient } from "../src/server/services/serpapi/client";
 import type { TripPlan } from "../src/server/trips/plan";
+import type { ReplanProposal } from "../src/server/realitycheck/proposal";
 import {
   registerVisionProvider,
   unregisterVisionProvider,
@@ -75,6 +78,64 @@ function sessionWithPlan(status: "PLANNED" | "APPROVED" | "ACTIVE" = "APPROVED")
     sessionVersion: 1,
     transcript: [],
     activePlan: planFixture(),
+    tripStatus: status,
+  });
+}
+
+function twoDayPlan(): TripPlan {
+  const base = planFixture();
+  return {
+    ...base,
+    days: [
+      ...base.days,
+      {
+        dayNumber: 2,
+        date: "2026-11-11",
+        items: [
+          {
+            id: "d2-a1",
+            kind: "attraction",
+            title: "Hawa Mahal",
+            place: { name: "Hawa Mahal" },
+            evidence: [
+              {
+                engine: "google_maps",
+                observedAt: "2026-10-04T00:00:00.000Z",
+                placeId: "hawa1",
+                query: "tourist attractions in Jaipur",
+                purpose: "attraction",
+                facts: { rating: 4.6, reviews: 2000, address: "Hawa Mahal Rd, Jaipur" },
+              },
+            ],
+          },
+          {
+            id: "d2-a2",
+            kind: "attraction",
+            title: "City Palace",
+            place: { name: "City Palace" },
+            evidence: [
+              {
+                engine: "google_maps",
+                observedAt: "2026-10-04T00:00:00.000Z",
+                placeId: "city1",
+                query: "tourist attractions in Jaipur",
+                purpose: "attraction",
+                facts: { rating: 4.5, reviews: 1800, address: "City Palace Rd, Jaipur" },
+              },
+            ],
+          },
+        ],
+        dayCost: { lines: [], currency: "INR" },
+      },
+    ],
+  };
+}
+
+function twoDaySession(status: "PLANNED" | "APPROVED" = "PLANNED"): ConversationSession {
+  return conversationSessionSchema.parse({
+    sessionVersion: 1,
+    transcript: [],
+    activePlan: twoDayPlan(),
     tripStatus: status,
   });
 }
@@ -211,6 +272,188 @@ describe("orchestrator dispatch", () => {
     expect(fake.searchHotels).not.toHaveBeenCalled();
   });
 
+  it("merges a pending plan draft instead of replacing it", () => {
+    expect(
+      mergePlanRequest({ destination: "Jaipur", durationDays: 3 }, { durationDays: 5 }),
+    ).toEqual({ destination: "Jaipur", durationDays: 5 });
+    expect(mergePlanRequest(undefined, { destination: "Goa" })).toEqual({
+      destination: "Goa",
+    });
+  });
+
+  it("starts a fresh trip when the follow-up names a new destination", () => {
+    expect(
+      mergePlanRequest(
+        { destination: "Jaipur", durationDays: 3, adults: 2 },
+        { destination: "Goa" },
+      ),
+    ).toEqual({ destination: "Goa" });
+  });
+
+  it("continues planning across turns: dates follow-up completes the trip", async () => {
+    const turn1 = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    expect(turn1.intent).toBe("plan_trip");
+    expect(turn1.outcome).toBe("clarification");
+    expect(turn1.session.activePlan).toBeUndefined();
+    // Everything stated is preserved; only the dates are still missing.
+    expect(turn1.session.pendingPlanRequest).toMatchObject({
+      destination: "Jaipur",
+      durationDays: 3,
+      adults: 2,
+      budget: { amount: 20000 },
+      interests: ["history", "food"],
+    });
+
+    const full = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn2 = await turn(
+      turn1.session,
+      "Start date is 2026-10-15 and end date is 2026-10-17.",
+      undefined,
+      { client: asClient(full) },
+    );
+    expect(turn2.intent).toBe("plan_trip");
+    expect(turn2.outcome).toBe("completed");
+    expect(turn2.message).not.toMatch(/where would you like to go/i);
+    expect(turn2.session.activePlan?.destination).toBe("Jaipur");
+    expect(turn2.session.activePlan?.durationDays).toBe(3);
+    expect(turn2.session.activePlan?.party.adults).toBe(2);
+    expect(turn2.session.activePlan?.budget?.amount).toBe(20000);
+    expect(turn2.session.tripStatus).toBe("PLANNED");
+    expect(turn2.session.pendingPlanRequest).toBeUndefined();
+    expect(full.searchMaps).toHaveBeenCalled();
+  });
+
+  it("accumulates sparse follow-ups without re-asking for known fields", async () => {
+    const turn1 = await turn(createEmptySession(), "Plan a trip to Jaipur.", undefined, {
+      client: asClient(fakeGateway()),
+    });
+    expect(turn1.outcome).toBe("clarification");
+    expect(turn1.session.pendingPlanRequest).toMatchObject({ destination: "Jaipur" });
+
+    const turn2 = await turn(
+      turn1.session,
+      "3 days, two adults, budget ₹20,000.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    expect(turn2.outcome).toBe("clarification");
+    expect(turn2.session.pendingPlanRequest).toMatchObject({
+      destination: "Jaipur",
+      durationDays: 3,
+      adults: 2,
+      budget: { amount: 20000 },
+    });
+    // Still only dates missing — destination is never asked again.
+    expect(turn2.message).toMatch(/start and end dates/i);
+    expect(turn2.message).not.toMatch(/destination|where.*go/i);
+
+    const full = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn3 = await turn(
+      turn2.session,
+      "Start date is 2026-10-15 and end date is 2026-10-17.",
+      undefined,
+      { client: asClient(full) },
+    );
+    expect(turn3.outcome).toBe("completed");
+    expect(turn3.session.activePlan?.destination).toBe("Jaipur");
+    expect(turn3.session.activePlan?.party.adults).toBe(2);
+    expect(turn3.session.pendingPlanRequest).toBeUndefined();
+  });
+
+  it("keeps the draft when an explicit unrelated capability runs", async () => {
+    const turn1 = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    const hotels = fakeGateway({
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn2 = await turn(turn1.session, "Find hotels in Jaipur", undefined, {
+      client: asClient(hotels),
+    });
+    expect(turn2.intent).toBe("find_hotels");
+    expect(turn2.outcome).toBe("completed");
+    // The unrelated turn did not consume or corrupt the pending draft.
+    expect(turn2.session.pendingPlanRequest).toMatchObject({ destination: "Jaipur" });
+
+    const full = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn3 = await turn(
+      turn2.session,
+      "Start date is 2026-10-15 and end date is 2026-10-17.",
+      undefined,
+      { client: asClient(full) },
+    );
+    expect(turn3.outcome).toBe("completed");
+    expect(turn3.session.activePlan?.destination).toBe("Jaipur");
+  });
+
+  it("extracts every stated field from a fully-specified request", () => {
+    expect(
+      extractPlanRequest(
+        "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      ),
+    ).toEqual({
+      destination: "Jaipur",
+      durationDays: 3,
+      adults: 2,
+      budget: { amount: 20000 },
+      interests: ["history", "food"],
+    });
+  });
+
+  it("extracts equivalent requirements from natural-language variants", () => {
+    const variants = [
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      "I want to spend 3 days in Jaipur with two adults. Our budget is ₹20,000 and we like history and food.",
+      "Help me plan Jaipur for 3 days for two people. We have ₹20,000 and enjoy historical places and local food.",
+    ];
+    for (const message of variants) {
+      const request = extractPlanRequest(message);
+      expect(request.destination).toBe("Jaipur");
+      expect(request.durationDays).toBe(3);
+      expect(request.adults).toBe(2);
+      expect(request.budget).toEqual({ amount: 20000 });
+      expect(request.interests).toEqual(["history", "food"]);
+    }
+  });
+
+  it("invokes planning for a fully-specified request and only asks for dates", async () => {
+    const fake = fakeGateway();
+    const res = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      undefined,
+      { client: asClient(fake) },
+    );
+    expect(res.intent).toBe("plan_trip");
+    expect(res.capability).toBe("planTrip");
+    // Destination, duration, party, budget, and interests were all
+    // extracted, so the planner asks only for the genuinely missing dates —
+    // never for the destination again.
+    expect(res.outcome).toBe("clarification");
+    const data = res.data as { missing?: string[] };
+    expect(data.missing).toEqual(expect.arrayContaining(["startDate", "endDate"]));
+    expect(data.missing).not.toContain("destination");
+    expect(res.message).not.toMatch(/where would you like to go/i);
+    expect(res.session.activePlan).toBeUndefined();
+  });
+
   it("runs one RealityCheck per check turn without chaining", async () => {
     const fake = fakeGateway({ maps: [PLACE], hotels: [] });
     const res = await turn(sessionWithPlan("PLANNED"), "Check if my itinerary is realistic", undefined, {
@@ -255,6 +498,126 @@ describe("orchestrator dispatch", () => {
     expect(proposed.session.pendingConfirmation?.action).toBe("apply_fix");
     // Plan untouched by proposal generation.
     expect(proposed.session.activePlan?.days[0]?.items[0]?.title).toBe("Synthetic Fort");
+  });
+
+  it("targets a named Day 2 item and proposes without mutating", async () => {
+    const fake = fakeGateway({
+      maps: [
+        { ...PLACE },
+        {
+          position: 2,
+          title: "Amber Fort",
+          placeId: "amber1",
+          rating: 4.7,
+          reviews: 1500,
+          address: "Amber, Jaipur",
+        },
+      ],
+      hotels: [],
+    });
+    const checked = await turn(twoDaySession(), "Run RealityCheck", undefined, {
+      client: asClient(fake),
+    });
+    expect(checked.intent).toBe("check_trip");
+    const proposed = await turn(
+      checked.session,
+      "Replace Hawa Mahal on Day 2 with another historical place",
+      undefined,
+      { client: asClient(fake) },
+    );
+    expect(proposed.intent).toBe("fix_trip");
+    expect(proposed.outcome).toBe("confirmation_required");
+    const data = proposed.data as { proposal: { changes: Array<{ itemId: string }> } };
+    expect(data.proposal.changes.map((c) => c.itemId)).toEqual(["d2-a1"]);
+    // Only the targeted item is touched; the rest of the plan is intact.
+    expect(
+      proposed.session.activePlan?.days[1]?.items.map((i) => i.id),
+    ).toEqual(["d2-a1", "d2-a2"]);
+    expect(proposed.session.pendingConfirmation?.action).toBe("apply_fix");
+  });
+
+  it("asks which activity when the request is indefinite", async () => {
+    const checked = await turn(twoDaySession(), "Run RealityCheck", undefined, {
+      client: asClient(fakeGateway({ maps: [PLACE], hotels: [] })),
+    });
+    const fresh = fakeGateway();
+    const res = await turn(
+      checked.session,
+      "Replace one of the activities on Day 2 with something quieter",
+      undefined,
+      { client: asClient(fresh) },
+    );
+    expect(res.outcome).toBe("clarification");
+    expect(res.message).toMatch(/Hawa Mahal/);
+    expect(res.message).toMatch(/City Palace/);
+    expect(fresh.searchMaps).not.toHaveBeenCalled();
+    expect(fresh.searchHotels).not.toHaveBeenCalled();
+  });
+
+  it("explains pace changes need replanning without calling the fixer", async () => {
+    const checked = await turn(twoDaySession(), "Run RealityCheck", undefined, {
+      client: asClient(fakeGateway({ maps: [PLACE], hotels: [] })),
+    });
+    const fresh = fakeGateway();
+    const res = await turn(
+      checked.session,
+      "Day 2 is too packed. Make it more relaxed.",
+      undefined,
+      { client: asClient(fresh) },
+    );
+    expect(res.outcome).toBe("clarification");
+    expect(res.message).toMatch(/fresh plan/i);
+    expect(fresh.searchMaps).not.toHaveBeenCalled();
+    expect(fresh.searchHotels).not.toHaveBeenCalled();
+  });
+
+  it("applies only the approved targeted change, then offers a fresh check", async () => {
+    const fake = fakeGateway({
+      maps: [
+        { ...PLACE },
+        {
+          position: 2,
+          title: "Amber Fort",
+          placeId: "amber1",
+          rating: 4.7,
+          reviews: 1500,
+          address: "Amber, Jaipur",
+        },
+      ],
+      hotels: [],
+    });
+    const checked = await turn(twoDaySession(), "Run RealityCheck", undefined, {
+      client: asClient(fake),
+    });
+    const proposed = await turn(
+      checked.session,
+      "Replace Hawa Mahal on Day 2 with another historical place",
+      undefined,
+      { client: asClient(fake) },
+    );
+    const data = proposed.data as unknown as {
+      proposal: ReplanProposal;
+    };
+    const done = await turn(
+      proposed.session,
+      "Yes, apply it",
+      {
+        action: "apply_fix",
+        changeIds: data.proposal.changes.map((c) => c.itemId),
+        proposal: data.proposal,
+      },
+      { client: asClient(fake) },
+    );
+    expect(done.outcome).toBe("completed");
+    const titles =
+      done.session.activePlan?.days[1]?.items.map((i) => i.title) ?? [];
+    expect(titles).toContain("Amber Fort");
+    expect(titles).not.toContain("Hawa Mahal");
+    // Untouched days and items survive byte-identical.
+    expect(done.session.activePlan?.days[0]?.items[0]?.title).toBe("Synthetic Fort");
+    expect(done.session.activePlan?.days[1]?.items[1]?.title).toBe("City Palace");
+    expect(done.session.tripStatus).toBe("PLANNED");
+    expect(done.followUps).toContain("Run RealityCheck");
   });
 
   it("discovers booking options without recording a selection", async () => {

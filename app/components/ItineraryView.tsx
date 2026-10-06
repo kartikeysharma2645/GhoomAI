@@ -4,6 +4,8 @@
  * bases, and evidence counts are shown as returned, never reinterpreted.
  */
 
+import { externalPlaceUrl } from "./agentChatHelpers";
+
 export interface PlanEvidence {
   engine: string;
   observedAt: string;
@@ -120,10 +122,26 @@ function EvidenceLine({ evidence }: { evidence: PlanEvidence[] }) {
     if (typeof e.facts.rating === "number") bits.push(`rated ${e.facts.rating}`);
     return bits.join(" · ");
   });
+  // First trustworthy place page across the item's evidence, if any.
+  // Hotels carry no provider URL in the normalized data, so stays render
+  // no link rather than a guessed one.
+  const placeUrl = externalPlaceUrl(evidence);
   return (
-    <p className="mt-1 text-xs text-neutral-400">
-      Evidence: {sources.join(" + ")}
-    </p>
+    <>
+      <p className="mt-1 text-xs text-neutral-400">
+        Evidence: {sources.join(" + ")}
+      </p>
+      {placeUrl && (
+        <a
+          href={placeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs font-medium text-sky-700 hover:underline"
+        >
+          View Place ↗
+        </a>
+      )}
+    </>
   );
 }
 

@@ -52,6 +52,14 @@ const fixRequestSchema = z.object({
   plan: tripPlanSchema,
   check: realityCheckResultSchema,
   requirements: tripRequirementsSchema.optional(),
+  /**
+   * Item IDs the user explicitly asked to replace (e.g. "replace Hawa Mahal
+   * with another historical place"). These enter the same bounded
+   * discover → verify → propose pipeline as verification findings, with
+   * the original finding recorded honestly as the item's real check status
+   * plus a user-request note — never a fabricated verdict.
+   */
+  replaceItemIds: z.array(z.string().min(1).max(100)).max(3).optional(),
 });
 
 /** NEEDS_ATTENTION facts that justify searching for a replacement. */
@@ -265,13 +273,42 @@ export async function fixTrip(
     ),
   ];
   const warnings: string[] = [];
+  const unfixable: UnfixableIssue[] = [];
+
+  // User-requested replacements ride the same bounded pipeline. Their
+  // original finding keeps the item's real check status with an explicit
+  // user-request note — the fixer never invents a verdict to justify them.
+  const requestedIds = parsed.data.replaceItemIds ?? [];
+  const covered = new Set(actionable.map((i) => i.itemId));
+  const byItemId = new Map(check.items.map((i) => [i.itemId, i]));
+  for (const itemId of requestedIds) {
+    if (covered.has(itemId)) continue;
+    const recorded = byItemId.get(itemId);
+    if (!recorded) {
+      unfixable.push({
+        itemId,
+        title: itemId,
+        status: "UNVERIFIED",
+        reason:
+          "No verification record for this item; run RealityCheck first, then ask for the replacement.",
+      });
+      continue;
+    }
+    actionable.push({
+      ...recorded,
+      // Facts stay empty so the recorded finding reads as the user's
+      // request, not as a verification failure that never happened.
+      facts: [],
+      reasons: ["You asked to replace this item.", ...recorded.reasons],
+    });
+    covered.add(itemId);
+  }
   if (actionable.length > MAX_ACTIONABLE_ISSUES) {
     warnings.push(
       `Only the first ${MAX_ACTIONABLE_ISSUES} of ${actionable.length} actionable findings were processed.`,
     );
   }
   const actionableCapped = actionable.slice(0, MAX_ACTIONABLE_ISSUES);
-  const unfixable: UnfixableIssue[] = [];
   for (const dropped of actionable.slice(MAX_ACTIONABLE_ISSUES)) {
     unfixable.push({
       itemId: dropped.itemId,
