@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import BookingHandoffPanel from "./BookingHandoffPanel";
 import ItineraryView, { type TripPlanData } from "./ItineraryView";
 import LiveTripView, { type LiveTripData } from "./LiveTripView";
 import RealityCheckSection from "./RealityCheckSection";
@@ -59,6 +60,12 @@ export default function TripForm() {
   const [plan, setPlan] = useState<TripPlanData | null>(null);
   const [activeTrip, setActiveTrip] = useState<ActiveTripData | null>(null);
   const [activating, setActivating] = useState(false);
+  /**
+   * Explicit user approval of the itinerary. Phase 9 Prompt 1: approval is
+   * the sanctioned entry into the APPROVED lifecycle state shown to the
+   * booking-readiness panel. Reset whenever the plan changes.
+   */
+  const [approved, setApproved] = useState(false);
 
   function toggleInterest(i: string) {
     setInterests((prev) =>
@@ -99,15 +106,18 @@ export default function TripForm() {
       if ((json.data as NeedsInput).status === "needs_input") {
         setPlan(null);
         setActiveTrip(null);
+        setApproved(false);
         setNeedsInput(json.data as NeedsInput);
       } else {
         setNeedsInput(null);
         setPlan(json.data as TripPlanData);
         setActiveTrip(null);
+        setApproved(false);
       }
     } catch (err) {
       setPlan(null);
       setActiveTrip(null);
+      setApproved(false);
       setError(err instanceof Error ? err.message : "Request failed.");
     } finally {
       setLoading(false);
@@ -294,7 +304,30 @@ export default function TripForm() {
             onPlanReplaced={(next) => {
               setPlan(next);
               setActiveTrip(null);
+              setApproved(false);
             }}
+          />
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setApproved((v) => !v)}
+              aria-pressed={approved}
+              className={`w-full rounded-xl border px-5 py-3 font-medium ${
+                approved
+                  ? "border-emerald-700 bg-emerald-50 text-emerald-900"
+                  : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-500"
+              }`}
+            >
+              {approved ? "Approved ✓ (tap to revoke)" : "Approve itinerary"}
+            </button>
+            <p className="mt-1 text-xs text-neutral-500">
+              Approval is explicit and only marks the itinerary as reviewed —
+              nothing is booked.
+            </p>
+          </div>
+          <BookingHandoffPanel
+            plan={plan}
+            status={activeTrip ? "ACTIVE" : approved ? "APPROVED" : "PLANNED"}
           />
           {!activeTrip ? (
             <button

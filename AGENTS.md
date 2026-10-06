@@ -54,7 +54,14 @@ availability, feasibility) should eventually be backed by evidence from live dat
 - **Phase 6 (completed):** Live Trip activation, itinerary tracking, and completion.
 - **Phase 7 (in progress — Steps 1–3):** Live situation awareness, reschedule proposals, approval/apply (no auto-reschedule).
 - **Phase 8 (in progress — Prompt 4):** Visual travel companion: vision provider optional and gracefully disabled (no key required; `VISION_NOT_CONFIGURED` when unset).
-- **Phase 9 (defined, not started):** Booking & Handoff / Pre-Trip Finalization (see §11).
+- **Phase 9 (completed):** Booking & Handoff / Pre-Trip Finalization:
+  readiness domain + `POST /api/trips/booking-readiness` (Prompt 1),
+  live SerpApi-backed `POST /api/trips/booking-discover` + `POST
+  /api/trips/booking-select` stateless EXTERNAL receipts (Prompt 2,
+  smoke-tested), and verification-only `POST /api/trips/booking-recheck`
+  around the existing RealityCheck engine + panel UI (Prompt 3,
+  smoke-tested). No booking performed, no database, all DoD items PASS
+  (see §11).
 - Application development is now permitted, strictly according to the phased
   plan in Section 3.
 - Do **not** build the complete application yet — implement only what the
@@ -80,7 +87,9 @@ validating earlier phases.
   - Step 2: Bounded rescheduling proposals — completed.
   - Step 3: User approval, apply, fresh recheck — this prompt.
 - **Phase 8 (in progress — Prompt 4):** Visual travel companion: vision provider optional and gracefully disabled (no key required; `VISION_NOT_CONFIGURED` when unset).
-- **Phase 9 (defined, not started):** Booking & Handoff / Pre-Trip Finalization (see §11).
+- **Phase 9 (completed):** Booking & Handoff / Pre-Trip Finalization
+  (readiness + live discovery + selection receipts + final recheck;
+  verification-only, no transactions).
 
 Rules:
 
