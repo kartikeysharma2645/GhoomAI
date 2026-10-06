@@ -54,6 +54,7 @@ availability, feasibility) should eventually be backed by evidence from live dat
 - **Phase 6 (completed):** Live Trip activation, itinerary tracking, and completion.
 - **Phase 7 (in progress — Steps 1–3):** Live situation awareness, reschedule proposals, approval/apply (no auto-reschedule).
 - **Phase 8 (in progress — Prompt 4):** Visual travel companion: vision provider optional and gracefully disabled (no key required; `VISION_NOT_CONFIGURED` when unset).
+- **Phase 9 (defined, not started):** Booking & Handoff / Pre-Trip Finalization (see §11).
 - Application development is now permitted, strictly according to the phased
   plan in Section 3.
 - Do **not** build the complete application yet — implement only what the
@@ -79,6 +80,7 @@ validating earlier phases.
   - Step 2: Bounded rescheduling proposals — completed.
   - Step 3: User approval, apply, fresh recheck — this prompt.
 - **Phase 8 (in progress — Prompt 4):** Visual travel companion: vision provider optional and gracefully disabled (no key required; `VISION_NOT_CONFIGURED` when unset).
+- **Phase 9 (defined, not started):** Booking & Handoff / Pre-Trip Finalization (see §11).
 
 Rules:
 
@@ -229,3 +231,96 @@ Do not implement RealityCheck before Phases 1–4 are validated.
 - Phase passes only if: code runs locally via env config, no secret leakage,
   SerpApi path (if any) tested against live API or explicitly marked untested,
   and changes are modular with frontend/backend separation intact.
+
+## 11. Phase 9 — Booking & Handoff / Pre-Trip Finalization Contract
+
+Product goal: after a user has approved a verified itinerary, GhoomAI helps
+the user move from an approved travel plan toward actual booking/handoff
+without pretending that GhoomAI itself is a universal booking platform.
+
+Core principle: "Search and verify the option; let the user complete
+the booking."
+
+### Scope
+
+Phase 9 covers:
+
+1. Approved-trip readiness for booking/handoff.
+2. Live discovery of relevant booking/search options using existing SerpApi
+   capabilities.
+3. Evidence-backed option presentation.
+4. Explicit distinction between:
+   - live search result
+   - estimated information
+   - external booking/handoff
+   - actual confirmed booking
+5. External handoff rather than fake in-app booking.
+6. A pre-trip finalization/recheck step so the itinerary can be checked
+   again after the user has approved/booked.
+7. Preservation of the existing lifecycle:
+   DRAFT → PLANNED → VERIFIED → APPROVED → ACTIVE → COMPLETED.
+   Do not invent a new lifecycle unless technically necessary.
+8. Compatibility with the existing RealityCheck and Live Trip systems.
+9. Security and honest-failure behavior.
+
+### SerpApi rule
+
+SerpApi/Search Engine APIs remain a core product capability. Phase 9 must
+use the existing SerpApi gateway meaningfully for live discovery/search
+where applicable. Do not replace live search with hardcoded examples or
+decorative API calls. SerpApi is a search/data layer, not a universal
+booking transaction API.
+
+### Booking constraint
+
+GhoomAI must NOT claim that it completed a booking unless an actual
+supported booking integration exists. For providers without a
+transactional integration, the correct behavior is external handoff:
+
+- discover/search the relevant option
+- show live evidence
+- provide an appropriate provider/booking destination when available
+- let the user complete the transaction externally
+- allow the user to record/attach booking details afterward if the
+  existing architecture supports it
+
+### Architecture requirements
+
+- Reuse the existing SerpApi client/gateway and normalizers.
+- Reuse existing evidence conventions.
+- Reuse RealityCheck rather than creating a second verification engine.
+- Reuse existing itinerary/trip models where possible.
+- Keep booking-provider-specific logic isolated behind clear server-side
+  boundaries.
+- No client-side API secrets.
+- No fake booking confirmation.
+- No invented availability, prices, URLs, or booking IDs.
+- External provider links must be based on actual returned
+  evidence/known supported destinations; never fabricate URLs.
+- User approval must remain explicit for consequential actions.
+- Partial failures must be represented honestly.
+
+### Security requirements
+
+- Never expose SERPAPI_KEY.
+- Never accept arbitrary server-side URLs for privileged fetching.
+- Validate all user input at API boundaries.
+- Do not store sensitive booking credentials/payment details.
+- Do not log secrets or unnecessary personal booking data.
+
+### Definition of Done (Phase 9)
+
+- Booking/handoff data contract established.
+- Live SerpApi-backed discovery implemented where supported by existing
+  gateway capabilities.
+- Honest external handoff behavior.
+- Pre-trip final RealityCheck/recheck path.
+- Appropriate UI for booking/handoff state.
+- Tests covering successful discovery, unavailable/failed search,
+  stale/changed results, no fake booking confirmation, and invalid input.
+- Full existing test suite remains green.
+- Typecheck/build pass.
+- Controlled live smoke test where credentials and existing SerpApi
+  capabilities permit.
+- Documentation updated.
+- No commit/push by OpenCode.
