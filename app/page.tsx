@@ -25,6 +25,13 @@ export default function HomePage() {
         </a>
       </p>
 
+      <p className="text-sm text-neutral-600">
+        Have a photo?{" "}
+        <a href="/vision" className="font-medium text-sky-700 hover:underline">
+          Identify a place from a picture
+        </a>
+      </p>
+
       <footer className="mt-auto pt-8 text-xs text-neutral-400">
         Live travel data via SerpApi · Verified answers arrive with
         RealityCheck in a later phase.

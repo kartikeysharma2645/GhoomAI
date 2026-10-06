@@ -1,6 +1,6 @@
 /** Thrown when required server configuration (e.g. SERPAPI_KEY) is missing. */
 export class ConfigurationError extends Error {
-  readonly code = "CONFIGURATION_ERROR";
+  readonly code: string = "CONFIGURATION_ERROR";
 
   constructor(message = "Server is missing required configuration.") {
     super(message);
@@ -43,6 +43,21 @@ export class ValidationError extends Error {
   constructor(message = "Request validation failed.") {
     super(message);
     this.name = "ValidationError";
+  }
+}
+
+/**
+ * Thrown when an optional capability has no configured provider.
+ * A ConfigurationError subtype so existing config-error handling applies.
+ */
+export class VisionNotConfiguredError extends ConfigurationError {
+  readonly code = "VISION_NOT_CONFIGURED";
+
+  constructor(
+    message = "Visual place identification is currently unavailable because no vision provider is configured.",
+  ) {
+    super(message);
+    this.name = "VisionNotConfiguredError";
   }
 }
 

@@ -12,6 +12,10 @@ const serverEnvSchema = z.object({
     .default("development"),
   APP_BASE_URL: z.string().url().optional(),
   SERPAPI_KEY: z.string().min(1).optional(),
+  // Reserved for a future vision provider adapter (Phase 8+).
+  // No vision provider is configured yet; unset means unavailable.
+  VISION_PROVIDER: z.string().min(1).max(64).optional(),
+  VISION_API_KEY: z.string().min(1).optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

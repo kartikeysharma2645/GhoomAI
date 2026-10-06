@@ -71,7 +71,7 @@ one `SerpApiClient` method → normalized evidence → `GhoomAIResponse`.
 | RealityCheckService   | 5     | Step 1 done: `src/server/realitycheck/` verifies TripPlans vs fresh data (no fixing) |          |
 | ReschedulingService   | 6     | Dynamic rescheduling (uses RealityCheckService)    |
 | BookingService        | 6+    | Booking-related flows (uses Flights/HotelsService) |
-| VisionService         | 7     | Landmark/image intelligence (Lens where suitable)  |
+| VisionService         | 7     | OpenAI vision adapter (`vision/openaiProvider.ts`, direct REST, no SDK) + `vision/placeAnalysis.ts` pipeline (vision → Search/Maps verify → explanation → nearby) |
 
 ## Phase 5 Step 1 RealityCheck (verify only, no fixing)
 
