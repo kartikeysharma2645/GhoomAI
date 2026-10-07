@@ -25,6 +25,31 @@ export interface PlanEvidence {
   };
 }
 
+export interface TripParty {
+  adults: number;
+  children: number;
+  teenagers?: number;
+  seniors?: number;
+}
+
+/**
+ * Human-readable traveler summary (2 adults · 2 children · 1 teenager).
+ * Zero-value categories are omitted; with only adults it stays "2 adults".
+ * Missing teen/senior fields (older plans) read as zero.
+ */
+export function formatPartyLabel(party: TripParty): string {
+  const parts = [
+    `${party.adults} adult${party.adults === 1 ? "" : "s"}`,
+  ];
+  const children = party.children;
+  if (children > 0) parts.push(`${children} child${children === 1 ? "" : "ren"}`);
+  const teenagers = party.teenagers ?? 0;
+  if (teenagers > 0) parts.push(`${teenagers} teenager${teenagers === 1 ? "" : "s"}`);
+  const seniors = party.seniors ?? 0;
+  if (seniors > 0) parts.push(`${seniors} senior${seniors === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+
 export interface PlanItem {
   id: string;
   kind: "attraction" | "meal" | "stay" | "note";
@@ -51,7 +76,7 @@ export interface TripPlanData {
   startDate?: string;
   endDate?: string;
   durationDays: number;
-  party: { adults: number; children: number };
+  party: TripParty;
   budget?: { amount: number; currency: string };
   budgetVerdict: "within" | "exceeds_live_costs" | "unknown";
   assumptions: string[];
@@ -175,9 +200,7 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
           {plan.dateMode === "fixed" && plan.startDate && plan.endDate
             ? `${plan.startDate} → ${plan.endDate} · `
             : "Flexible dates · "}
-          {plan.party.adults} adult{plan.party.adults === 1 ? "" : "s"}
-          {plan.party.children > 0 &&
-            `, ${plan.party.children} ${plan.party.children === 1 ? "child" : "children"}`}
+          {formatPartyLabel(plan.party)}
           {plan.budget &&
             ` · Budget ${plan.budget.currency} ${plan.budget.amount.toLocaleString("en-US")}`}
         </p>

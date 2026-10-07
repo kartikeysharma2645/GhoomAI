@@ -52,6 +52,8 @@ export function planSignature(plan: TripPlanData): string {
     plan.durationDays,
     plan.party.adults,
     plan.party.children,
+    plan.party.teenagers ?? 0,
+    plan.party.seniors ?? 0,
     plan.days.length,
   ].join("|");
 }
@@ -60,11 +62,73 @@ const inputCls =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900 outline-none placeholder:text-stone-400 focus:border-teal-800";
 const labelCls = "block text-sm font-medium text-stone-700";
 
+/**
+ * Compact traveler stepper. Numeric state only — no text input, so NaN
+ * and negative values are unreachable; min/max are clamped on every tap.
+ */
+function TravelerStepper({
+  id,
+  label,
+  ageRange,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  ageRange: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+      <p id={`${id}-label`} className="text-sm font-medium text-stone-900">
+        {label}
+      </p>
+      <p className="text-xs text-stone-500">{ageRange}</p>
+      <div className="mt-2 flex items-center justify-between gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+          aria-label={`Fewer ${label.toLowerCase()}`}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-300 bg-white text-lg font-medium text-stone-700 hover:border-stone-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          −
+        </button>
+        <span
+          id={id}
+          role="status"
+          aria-labelledby={`${id}-label`}
+          className="min-w-[2ch] text-center text-base font-bold tabular-nums text-stone-900"
+        >
+          {value}
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={value >= max}
+          aria-label={`More ${label.toLowerCase()}`}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-300 bg-white text-lg font-medium text-stone-700 hover:border-stone-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function TripForm() {
   const [destination, setDestination] = useState("Jaipur");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [adults, setAdults] = useState("2");
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [teenagers, setTeenagers] = useState(0);
+  const [seniors, setSeniors] = useState(0);
   const [budget, setBudget] = useState("25000");
   const [interests, setInterests] = useState<string[]>(["history", "food"]);
   const [pace, setPace] = useState<(typeof PACES)[number]>("balanced");
@@ -98,7 +162,10 @@ export default function TripForm() {
         destination: destination.trim() || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        adults: Number(adults) || undefined,
+        adults,
+        children,
+        teenagers,
+        seniors,
         budget: budget.trim()
           ? { amount: Number(budget), currency: "INR" }
           : undefined,
@@ -195,35 +262,60 @@ export default function TripForm() {
             />
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelCls} htmlFor="adults">
-              Adults
-            </label>
-            <input
-              id="adults"
-              type="number"
+        <div>
+          <span className={labelCls}>Travelers</span>
+          <div className="mt-1 grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <TravelerStepper
+              id="travelers-adults"
+              label="Adults"
+              ageRange="20–59"
+              value={adults}
               min={1}
               max={16}
-              value={adults}
-              onChange={(e) => setAdults(e.target.value)}
-              className={inputCls}
+              onChange={setAdults}
             />
-          </div>
-          <div>
-            <label className={labelCls} htmlFor="budget">
-              Budget (INR, optional)
-            </label>
-            <input
-              id="budget"
-              type="number"
+            <TravelerStepper
+              id="travelers-children"
+              label="Children"
+              ageRange="0–12"
+              value={children}
               min={0}
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder="25000"
-              className={inputCls}
+              max={10}
+              onChange={setChildren}
+            />
+            <TravelerStepper
+              id="travelers-teenagers"
+              label="Teenagers"
+              ageRange="13–19"
+              value={teenagers}
+              min={0}
+              max={10}
+              onChange={setTeenagers}
+            />
+            <TravelerStepper
+              id="travelers-seniors"
+              label="Seniors"
+              ageRange="60+"
+              value={seniors}
+              min={0}
+              max={10}
+              onChange={setSeniors}
             />
           </div>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="budget">
+            Budget (INR, optional)
+          </label>
+          <input
+            id="budget"
+            type="number"
+            min={0}
+            value={budget}
+            onChange={(e) => setBudget(e.target.value)}
+            placeholder="25000"
+            className={inputCls}
+          />
         </div>
         <div>
           <span className={labelCls}>Interests</span>

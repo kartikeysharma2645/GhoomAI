@@ -16,6 +16,8 @@ export const TRAVEL_PACES = ["relaxed", "balanced", "packed"] as const;
 
 const MAX_PARTY_ADULTS = 16;
 const MAX_PARTY_CHILDREN = 10;
+const MAX_PARTY_TEENAGERS = 10;
+const MAX_PARTY_SENIORS = 10;
 const MAX_TRIP_DAYS = 30;
 
 export const tripPlanRequestSchema = z.object({
@@ -27,6 +29,8 @@ export const tripPlanRequestSchema = z.object({
   adults: z.number().int().min(1).max(MAX_PARTY_ADULTS).optional(),
   children: z.number().int().min(0).max(MAX_PARTY_CHILDREN).optional(),
   childrenAges: z.array(z.number().int().min(0).max(17)).max(10).optional(),
+  teenagers: z.number().int().min(0).max(MAX_PARTY_TEENAGERS).optional(),
+  seniors: z.number().int().min(0).max(MAX_PARTY_SENIORS).optional(),
   budget: z
     .object({
       amount: z.number().positive().max(1_000_000_000),
@@ -54,6 +58,10 @@ export const tripRequirementsSchema = z.object({
   adults: z.number().int().min(1).max(MAX_PARTY_ADULTS),
   children: z.number().int().min(0).max(MAX_PARTY_CHILDREN),
   childrenAges: z.array(z.number().int().min(0).max(17)).max(10).optional(),
+  // Optional for backward compatibility with older stored requirements;
+  // resolveRequirements always fills them (default 0) for new requests.
+  teenagers: z.number().int().min(0).max(MAX_PARTY_TEENAGERS).optional(),
+  seniors: z.number().int().min(0).max(MAX_PARTY_SENIORS).optional(),
   budget: z
     .object({
       amount: z.number().positive().max(1_000_000_000),
@@ -121,6 +129,16 @@ export function resolveRequirements(
       "childrenAges length must match the children count.",
     );
   }
+  const teenagers = input.teenagers ?? 0;
+  const seniors = input.seniors ?? 0;
+  if (teenagers > 0 || seniors > 0) {
+    // Explicit provider limitation, not a silent conversion: hotel search
+    // supports adults and children (0–17) only, so teenager/senior counts
+    // are preserved for planning while room occupancy stays unverified.
+    assumptions.push(
+      "Hotel search covers adults and children (0–17) only — teenager/senior counts are kept for planning; confirm room occupancy with the provider.",
+    );
+  }
 
   const currency = (input.budget?.currency ?? "INR").toUpperCase();
   const budget = input.budget
@@ -132,6 +150,8 @@ export function resolveRequirements(
     adults,
     children,
     childrenAges,
+    teenagers,
+    seniors,
     budget,
     interests: input.interests ?? [],
     pace,

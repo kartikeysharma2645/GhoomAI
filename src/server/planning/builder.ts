@@ -497,7 +497,12 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
     ...(requirements.startDate ? { startDate: requirements.startDate } : {}),
     ...(requirements.endDate ? { endDate: requirements.endDate } : {}),
     durationDays: dayCount,
-    party: { adults: requirements.adults, children: requirements.children },
+    party: {
+      adults: requirements.adults,
+      children: requirements.children,
+      teenagers: requirements.teenagers ?? 0,
+      seniors: requirements.seniors ?? 0,
+    },
     ...(requirements.budget ? { budget: requirements.budget } : {}),
     budgetVerdict,
     assumptions,

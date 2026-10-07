@@ -136,6 +136,11 @@ export const tripPlanSchema = z.object({
   party: z.object({
     adults: z.number().int().min(1),
     children: z.number().int().min(0),
+    // Optional so every previously stored/old-client plan keeps parsing:
+    // missing categories read as zero rather than failing validation.
+    // The builder always writes explicit numbers for new plans.
+    teenagers: z.number().int().min(0).optional(),
+    seniors: z.number().int().min(0).optional(),
   }),
   budget: z
     .object({

@@ -239,6 +239,16 @@ export function extractPlanRequest(message: string): TripPlanRequest {
   );
   const childCount = parseCount(children?.[1]);
   if (childCount !== undefined) request.children = childCount;
+  const teenagers = message.match(
+    new RegExp(`(\\d+|${COUNT_WORDS})\\s*(teenagers?|teens?)`, "i"),
+  );
+  const teenagerCount = parseCount(teenagers?.[1]);
+  if (teenagerCount !== undefined) request.teenagers = teenagerCount;
+  const seniors = message.match(
+    new RegExp(`(\\d+|${COUNT_WORDS})\\s*(seniors?|elderly)`, "i"),
+  );
+  const seniorCount = parseCount(seniors?.[1]);
+  if (seniorCount !== undefined) request.seniors = seniorCount;
   const budget = message.match(
     /(?:budget|under|up\s*to|within|max)\s*(?:inr|rs|₹)?\s*([\d,]+)|(?:inr|rs|₹)\s*([\d,]+)|([\d,]+)\s*(?:inr|rs|rupees?)/i,
   );
