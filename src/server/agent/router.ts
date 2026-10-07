@@ -125,9 +125,14 @@ function has(message: string, pattern: RegExp): boolean {
 // the router tries them in priority order (most specific first).
 
 const SELECT_PATTERNS = [
-  /\b(use|choose|select|pick|go with)\b.{0,40}\b(option|first|second|third|one|it|this)\b/,
+  // Booking selection only: the target must read as an option reference
+  // (ordinal, "option", or "one"). Bare demonstratives ("choose this
+  // <place>", "select this place") are place language, not booking
+  // language, and must fall through to search/clarification instead.
+  /\b(use|choose|select|pick|go with)\b.{0,40}\b(option|options|first|second|third|one)\b/,
   /\b(first|second|third)\s+(one|option)\b/,
   /\buse\s+this\s+option\b/,
+  /\b(option|options)\s+\d+\b/,
 ];
 
 const RECHECK_PATTERNS = [

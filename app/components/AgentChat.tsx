@@ -515,7 +515,7 @@ export default function AgentChat() {
                     </div>
                   )}
                 </div>
-                {t.turn && <AgentResultView turn={t.turn} />}
+                {t.turn && <AgentResultView turn={t.turn} onAction={onFollowUp} />}
                 {t.turn && requiresApproval(t.turn) && (
                   <AgentCard className="border-amber-200 bg-amber-50/60">
                     <p className="text-sm font-bold text-stone-900">

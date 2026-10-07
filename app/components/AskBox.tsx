@@ -56,6 +56,9 @@ export default function AskBox() {
         throw new Error(errorMessage(json, "Something went wrong."));
       }
       setAnswer(json.data as unknown as AskResponseData);
+      // Clear the query only after a successful answer, so a failed
+      // request keeps the text for easy retry (Phase 2.5 Fix 4).
+      setMessage("");
     } catch (err) {
       setAnswer(null);
       setError(err instanceof Error ? err.message : "Request failed.");

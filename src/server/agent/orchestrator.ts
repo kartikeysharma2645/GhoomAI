@@ -122,6 +122,14 @@ const CANCEL_RE =
   /^(no|nope|cancel|cancelled|canceled|stop|never mind|don't|dont|not now)\b/;
 
 /**
+ * Honest scope note appended to discovery turns that ran without any
+ * geographic context (Phase 2.5 Fix 1). The search itself stays broad and
+ * global rather than pretending to be local — the note says so plainly.
+ */
+const BROAD_DISCOVERY_NOTE =
+  " These are broad travel ideas — name a destination or region to narrow the results.";
+
+/**
  * Extracts trip interests stated in a message, using the same vocabulary
  * the planner uses. Pure and deterministic; returns [] when none stated.
  */
@@ -638,9 +646,19 @@ export async function orchestrateTurn(
       case "find_hotels":
       case "discover_places":
       case "general_search": {
+        // Location-aware discovery (Phase 2.5 Fix 1): reuse geographic
+        // context the user already gave — the active plan's destination,
+        // then their own partial planning requirements, then whatever the
+        // router extracted from this message. Never invented, never a
+        // hardcoded default region; without context the search stays
+        // honestly broad (see BROAD_DISCOVERY_NOTE below).
+        const discoveryDestination =
+          working.activePlan?.destination ??
+          working.pendingPlanRequest?.destination ??
+          undefined;
         const legacy = resolveIntent(
           trimmed,
-          { destination: working.activePlan?.destination },
+          { destination: discoveryDestination },
           now,
         );
         const data = await executeIntent(legacy, client ?? new SerpApiClient());
@@ -649,7 +667,9 @@ export async function orchestrateTurn(
             ...base,
             outcome: "completed",
             capability: "executeIntent",
-            message: data.message,
+            message:
+              data.message +
+              (legacy.destination ? "" : BROAD_DISCOVERY_NOTE),
             data,
             followUps: ["Plan a trip here", "Discover more places"],
           },

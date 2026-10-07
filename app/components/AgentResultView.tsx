@@ -273,7 +273,18 @@ function SituationsAdapter({ liveCheck }: { liveCheck: unknown }) {
   );
 }
 
-export default function AgentResultView({ turn }: { turn: AgentTurnView }) {
+export default function AgentResultView({
+  turn,
+  onAction,
+}: {
+  turn: AgentTurnView;
+  /**
+   * Sends a normal agent message for result-level actions (currently the
+   * place "Plan a trip here" button). Wired by AgentChat only — never a
+   * confirmation bypass, never a new capability.
+   */
+  onAction?: (message: string) => void;
+}) {
   const data = isRecord(turn.data) ? turn.data : null;
   if (!data) return null;
 
@@ -285,7 +296,7 @@ export default function AgentResultView({ turn }: { turn: AgentTurnView }) {
     typeof data.engine === "string" &&
     Array.isArray(data.results)
   ) {
-    return <ResultCards data={data as unknown as AskResponseData} />;
+    return <ResultCards data={data as unknown as AskResponseData} onPlanHere={onAction} />;
   }
 
   if (

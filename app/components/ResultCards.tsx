@@ -155,12 +155,36 @@ function HotelCard({ hotel, currency }: { hotel: AskResultItem; currency?: strin
   );
 }
 
-function PlaceCard({ place }: { place: AskResultItem }) {
+/**
+ * Builds the destination-bearing agent message for a place result's
+ * "Plan a trip here" action (Phase 2.5 Fix 2). Uses only fields actually
+ * present in the result — the place name plus its real address when one
+ * exists. Never invents a city or location: with a name alone the
+ * message carries just the name, and the router's multi-turn planning
+ * flow asks for anything still missing. Returns null when there is no
+ * usable name, in which case no action renders.
+ */
+export function buildPlanHereMessage(item: AskResultItem): string | null {
+  const name = (item.title ?? item.name ?? "").trim();
+  if (!name) return null;
+  const address = (item.address ?? "").trim();
+  const message = address ? `Plan a trip to ${name} in ${address}` : `Plan a trip to ${name}`;
+  return message.slice(0, 500);
+}
+
+function PlaceCard({
+  place,
+  onPlanHere,
+}: {
+  place: AskResultItem;
+  onPlanHere?: (message: string) => void;
+}) {
   const website =
     place.links && typeof place.links.website === "string"
       ? place.links.website
       : undefined;
   const typeLabel = place.placeType ?? place.placeTypes?.[0];
+  const planMessage = buildPlanHereMessage(place);
   return (
     <article className="flex gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
       <Thumbnail src={place.thumbnail} alt={place.title ?? "Place"} />
@@ -171,13 +195,27 @@ function PlaceCard({ place }: { place: AskResultItem }) {
         {place.address && (
           <p className="mt-1 break-words text-sm text-stone-600">{place.address}</p>
         )}
-        {website && (
-          <ExternalLink
-            href={website}
-            className="mt-2 inline-flex min-h-[36px] items-center rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-[13px] font-medium text-teal-800 shadow-sm hover:border-teal-700"
-          >
-            View Place ↗ · {domainOf(website)}
-          </ExternalLink>
+        {(website || (onPlanHere && planMessage)) && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {website && (
+              <ExternalLink
+                href={website}
+                className="inline-flex min-h-[36px] items-center rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-[13px] font-medium text-teal-800 shadow-sm hover:border-teal-700"
+              >
+                View Place ↗ · {domainOf(website)}
+              </ExternalLink>
+            )}
+            {onPlanHere && planMessage && (
+              <button
+                type="button"
+                onClick={() => onPlanHere(planMessage)}
+                aria-label={`Plan a trip to ${place.title ?? "this place"}`}
+                className="inline-flex min-h-[36px] items-center rounded-lg bg-stone-900 px-3 py-1.5 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2"
+              >
+                Plan a trip here
+              </button>
+            )}
+          </div>
         )}
       </div>
     </article>
@@ -213,7 +251,18 @@ const ENGINE_LABEL: Record<AskResponseData["engine"], string> = {
   google: "Google Search",
 };
 
-export default function ResultCards({ data }: { data: AskResponseData }) {
+export default function ResultCards({
+  data,
+  onPlanHere,
+}: {
+  data: AskResponseData;
+  /**
+   * Place-level action available only where the caller can send an agent
+   * message (the /agent workspace). Home quick-search omits it, so its
+   * single-turn results keep no misleading action.
+   */
+  onPlanHere?: (message: string) => void;
+}) {
   if (data.results.length === 0) {
     return (
       <section aria-label="Live results" className="space-y-2.5">
@@ -242,7 +291,11 @@ export default function ResultCards({ data }: { data: AskResponseData }) {
         ))}
       {data.engine === "google_maps" &&
         data.results.map((place, i) => (
-          <PlaceCard key={`${place.title ?? "place"}-${i}`} place={place} />
+          <PlaceCard
+            key={`${place.title ?? "place"}-${i}`}
+            place={place}
+            onPlanHere={onPlanHere}
+          />
         ))}
       {data.engine === "google" &&
         data.results.map((item, i) => (
