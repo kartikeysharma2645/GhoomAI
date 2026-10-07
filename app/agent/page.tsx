@@ -1,44 +1,43 @@
+import { Suspense } from "react";
 import AgentChat from "../components/AgentChat";
 
 export default function AgentPage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-8 py-12">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-widest text-neutral-500">
-          GhoomAI · Travel Agent
-        </p>
-        <h1 className="mt-1 text-4xl font-bold text-neutral-900">
-          Chat with GhoomAI
-        </h1>
-        <p className="mt-2 text-neutral-600">
-          One conversation for planning, verification, booking handoff, and
-          live-trip tracking — every action runs through a verified
-          capability, never guessed.
-        </p>
-      </header>
+    <main className="min-h-screen bg-[#f7f4ee]">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
+        {/* Suspense boundary: AgentChat reads ?discover= for visual
+            discovery deep-links; required for static prerendering. */}
+        <Suspense
+          fallback={
+            <div className="mx-auto w-full max-w-5xl rounded-3xl bg-stone-900 px-6 py-16 text-center">
+              <p className="text-sm text-stone-300">Loading your travel companion…</p>
+            </div>
+          }
+        >
+          <AgentChat />
+        </Suspense>
 
-      <AgentChat />
+        <nav aria-label="Specialized surfaces" className="mt-6 space-y-1 text-sm text-stone-500">
+          <p>
+            Prefer the focused tools?{" "}
+            <a href="/plan" className="font-medium text-teal-900 hover:underline">
+              Trip planner
+            </a>{" "}
+            ·{" "}
+            <a href="/vision" className="font-medium text-teal-900 hover:underline">
+              Photo identification
+            </a>{" "}
+            ·{" "}
+            <a href="/" className="font-medium text-teal-900 hover:underline">
+              Quick search
+            </a>
+          </p>
+        </nav>
 
-      <nav aria-label="Specialized surfaces" className="space-y-1 text-sm text-neutral-600">
-        <p>
-          Prefer the focused tools?{" "}
-          <a href="/plan" className="font-medium text-sky-700 hover:underline">
-            Trip planner
-          </a>{" "}
-          ·{" "}
-          <a href="/vision" className="font-medium text-sky-700 hover:underline">
-            Photo identification
-          </a>{" "}
-          ·{" "}
-          <a href="/" className="font-medium text-sky-700 hover:underline">
-            Quick search
-          </a>
-        </p>
-      </nav>
-
-      <footer className="mt-auto pt-8 text-xs text-neutral-400">
-        Live travel data via SerpApi · GhoomAI never completes bookings.
-      </footer>
+        <footer className="mt-auto pt-4 text-xs text-stone-400">
+          Live travel data via SerpApi · GhoomAI never completes bookings.
+        </footer>
+      </div>
     </main>
   );
 }

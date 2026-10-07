@@ -79,12 +79,12 @@ export default function AskBox() {
           placeholder="Ask about hotels, places, or anything travel…"
           maxLength={500}
           disabled={loading}
-          className="min-w-0 flex-1 rounded-xl border border-neutral-300 bg-white px-4 py-3 text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400 focus:border-sky-600 disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 shadow-sm outline-none placeholder:text-stone-400 focus:border-teal-800 disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={loading || !message.trim()}
-          className="shrink-0 rounded-xl bg-neutral-900 px-5 py-3 font-medium text-white shadow-sm hover:bg-neutral-700 disabled:opacity-50"
+          className="shrink-0 rounded-xl bg-stone-900 px-5 py-3 font-medium text-white shadow-sm hover:bg-stone-700 disabled:opacity-50"
         >
           {loading ? "Asking…" : "Ask"}
         </button>
@@ -100,7 +100,7 @@ export default function AskBox() {
               setMessage(s);
               void ask(s);
             }}
-            className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-sm text-neutral-600 hover:border-neutral-500 disabled:opacity-60"
+            className="rounded-full border border-stone-300 bg-white px-3 py-1 text-sm text-stone-600 hover:border-stone-500 disabled:opacity-60"
           >
             {s}
           </button>
@@ -119,22 +119,22 @@ export default function AskBox() {
       {answer && (
         <div className="mt-6">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-neutral-900 px-3 py-1 text-xs font-medium text-white">
+            <span className="rounded-full bg-stone-900 px-3 py-1 text-xs font-medium text-white">
               {INTENT_LABEL[answer.intent]}
             </span>
             {answer.destination && (
-              <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-900">
+              <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-medium text-teal-900">
                 {answer.destination}
               </span>
             )}
             {answer.dates && (
-              <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600">
+              <span className="rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-600">
                 {answer.dates.checkIn} → {answer.dates.checkOut}
                 {answer.dates.source === "default" ? " · default dates" : ""}
               </span>
             )}
           </div>
-          <p className="mt-3 text-neutral-700">{answer.message}</p>
+          <p className="mt-3 text-stone-700">{answer.message}</p>
           <ResultCards data={answer} />
         </div>
       )}

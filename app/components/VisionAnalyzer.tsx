@@ -62,9 +62,9 @@ const STATUS_HEADING: Record<VisionStatus, string> = {
 
 const STATUS_STYLE: Record<VisionStatus, string> = {
   IDENTIFIED: "bg-emerald-100 text-emerald-900",
-  LIKELY: "bg-sky-100 text-sky-900",
+  LIKELY: "bg-teal-100 text-teal-900",
   UNCERTAIN: "bg-amber-100 text-amber-900",
-  UNIDENTIFIED: "bg-neutral-100 text-neutral-600",
+  UNIDENTIFIED: "bg-stone-100 text-stone-600",
   ERROR: "bg-red-100 text-red-900",
 };
 
@@ -193,7 +193,7 @@ const VERIFY_LABEL: Record<VisionPlaceVerification["status"], string> = {
 const VERIFY_STYLE: Record<VisionPlaceVerification["status"], string> = {
   VERIFIED: "bg-emerald-100 text-emerald-900",
   PARTIALLY_VERIFIED: "bg-amber-100 text-amber-900",
-  UNVERIFIED: "bg-neutral-100 text-neutral-600",
+  UNVERIFIED: "bg-stone-100 text-stone-600",
 };
 
 export default function VisionAnalyzer() {
@@ -305,11 +305,11 @@ export default function VisionAnalyzer() {
     <div>
       <label
         htmlFor="vision-image"
-        className="block text-sm font-medium text-neutral-700"
+        className="block text-sm font-medium text-stone-700"
       >
         Photo of a place
       </label>
-      <p className="mt-1 text-xs text-neutral-500">
+      <p className="mt-1 text-xs text-stone-500">
         For example, a photo of a monument, temple facade, or street scene.
       </p>
       <input
@@ -319,7 +319,7 @@ export default function VisionAnalyzer() {
         accept="image/jpeg,image/png,image/webp"
         disabled={loading}
         onChange={(e) => onSelect(e.target.files?.[0] ?? null)}
-        className="mt-1 block w-full text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border file:border-neutral-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-neutral-700 hover:file:border-neutral-500 disabled:opacity-60"
+        className="mt-1 block w-full text-sm text-stone-600 file:mr-3 file:rounded-lg file:border file:border-stone-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-stone-700 hover:file:border-stone-500 disabled:opacity-60"
       />
 
       {previewUrl && (
@@ -328,14 +328,14 @@ export default function VisionAnalyzer() {
           <img
             src={previewUrl}
             alt="Selected photo preview"
-            className="max-h-64 w-auto rounded-xl border border-neutral-200 object-cover"
+            className="max-h-64 w-auto rounded-xl border border-stone-200 object-cover"
           />
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={() => void onAnalyze()}
               disabled={loading || !file}
-              className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              className="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
             >
               {loading ? "Analyzing…" : "Identify this place"}
             </button>
@@ -343,7 +343,7 @@ export default function VisionAnalyzer() {
               type="button"
               onClick={clearSelection}
               disabled={loading}
-              className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm text-neutral-600 hover:border-neutral-500 disabled:opacity-60"
+              className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm text-stone-600 hover:border-stone-500 disabled:opacity-60"
             >
               Remove
             </button>
@@ -363,9 +363,9 @@ export default function VisionAnalyzer() {
       {visionUnavailable && (
         <div
           role="status"
-          className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700"
+          className="mt-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700"
         >
-          <p className="font-medium text-neutral-900">
+          <p className="font-medium text-stone-900">
             Live image recognition is currently unavailable.
           </p>
           <p className="mt-1">
@@ -379,15 +379,15 @@ export default function VisionAnalyzer() {
       {result && (
         <section
           aria-live="polite"
-          className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
+          className="mt-4 space-y-3 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-bold text-neutral-900">
+            <h3 className="font-bold text-stone-900">
               {STATUS_HEADING[result.status] ?? "Result…"}
             </h3>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                STATUS_STYLE[result.status] ?? "bg-neutral-100 text-neutral-600"
+                STATUS_STYLE[result.status] ?? "bg-stone-100 text-stone-600"
               }`}
             >
               {result.status.charAt(0) + result.status.slice(1).toLowerCase()}
@@ -399,33 +399,33 @@ export default function VisionAnalyzer() {
               {result.candidates.map((c) => (
                 <li
                   key={`${c.name}-${Math.round(c.confidence * 100)}`}
-                  className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3"
+                  className="rounded-xl border border-stone-100 bg-stone-50/60 p-3"
                 >
                   <div className="flex items-baseline justify-between gap-2">
-                    <p className="font-medium text-neutral-900">{c.name}</p>
-                    <p className="shrink-0 text-xs text-neutral-500">
+                    <p className="font-medium text-stone-900">{c.name}</p>
+                    <p className="shrink-0 text-xs text-stone-500">
                       {Math.round(c.confidence * 100)}%
                     </p>
                   </div>
                   <div
-                    className="mt-1 h-1.5 overflow-hidden rounded-full bg-neutral-200"
+                    className="mt-1 h-1.5 overflow-hidden rounded-full bg-stone-200"
                     role="img"
                     aria-label={`Confidence ${Math.round(c.confidence * 100)} percent`}
                   >
                     <div
-                      className="h-full rounded-full bg-sky-600"
+                      className="h-full rounded-full bg-teal-700"
                       style={{ width: `${Math.round(c.confidence * 100)}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-xs text-neutral-500">{c.type}</p>
+                  <p className="mt-1 text-xs text-stone-500">{c.type}</p>
                   {c.reasoning && (
-                    <p className="mt-1 text-sm text-neutral-600">{c.reasoning}</p>
+                    <p className="mt-1 text-sm text-stone-600">{c.reasoning}</p>
                   )}
                 </li>
               ))}
             </ol>
           ) : (
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-stone-600">
               Not enough visual evidence to suggest a place. Try a clearer
               photo showing the landmark or its surroundings.
             </p>
@@ -433,10 +433,10 @@ export default function VisionAnalyzer() {
 
           {result.visualObservations.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-neutral-700">
+              <h4 className="text-sm font-medium text-stone-700">
                 What can be seen
               </h4>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-neutral-600">
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-stone-600">
                 {result.visualObservations.map((o, i) => (
                   <li key={i}>{o}</li>
                 ))}
@@ -452,7 +452,7 @@ export default function VisionAnalyzer() {
             </ul>
           )}
 
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-stone-400">
             Identification is a starting point, not a verified location.
           </p>
 
@@ -461,7 +461,7 @@ export default function VisionAnalyzer() {
               type="button"
               onClick={() => void onVerify()}
               disabled={placeLoading || !file}
-              className="w-full rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+              className="w-full rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
             >
               {placeLoading ? "Verifying with live search…" : "Verify with live search"}
             </button>
@@ -481,13 +481,13 @@ export default function VisionAnalyzer() {
       {place && (
         <section
           aria-live="polite"
-          className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
+          className="mt-4 space-y-3 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-bold text-neutral-900">Live verification</h3>
+            <h3 className="font-bold text-stone-900">Live verification</h3>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                VERIFY_STYLE[place.verification.status] ?? "bg-neutral-100 text-neutral-600"
+                VERIFY_STYLE[place.verification.status] ?? "bg-stone-100 text-stone-600"
               }`}
             >
               {VERIFY_LABEL[place.verification.status] ?? place.verification.status}
@@ -496,14 +496,14 @@ export default function VisionAnalyzer() {
 
           {place.verification.matchedPlace ? (
             <div>
-              <p className="font-medium text-neutral-900">
+              <p className="font-medium text-stone-900">
                 {place.verification.matchedPlace.name}
                 {[place.verification.matchedPlace.city, place.verification.matchedPlace.country]
                   .filter(Boolean)
                   .join(", ") && (
                   <>
                     {" "}
-                    <span className="font-normal text-neutral-500">
+                    <span className="font-normal text-stone-500">
                       ({[place.verification.matchedPlace.city, place.verification.matchedPlace.country].filter(Boolean).join(", ")})
                     </span>
                   </>
@@ -517,13 +517,13 @@ export default function VisionAnalyzer() {
                 </p>
               )}
               {place.verification.matchedPlace.address && (
-                <p className="text-sm text-neutral-600">
+                <p className="text-sm text-stone-600">
                   {place.verification.matchedPlace.address}
                 </p>
               )}
             </div>
           ) : (
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-stone-600">
               AI suggests{" "}
               {result?.candidates[0]?.name ?? "a place"}
               , but live sources could not fully verify the identification.
@@ -531,65 +531,65 @@ export default function VisionAnalyzer() {
           )}
 
           <div>
-            <h4 className="text-sm font-medium text-neutral-700">
+            <h4 className="text-sm font-medium text-stone-700">
               About this place
             </h4>
-            <p className="mt-1 text-sm text-neutral-600">
+            <p className="mt-1 text-sm text-stone-600">
               <span className="font-medium">Visual: </span>
               {result?.candidates[0]
                 ? `The image appears to show ${result.candidates[0].name}.`
                 : "Visual identification was inconclusive."}
             </p>
-            <p className="mt-1 text-sm text-neutral-600">
+            <p className="mt-1 text-sm text-stone-600">
               <span className="font-medium">Researched: </span>
               {place.explanation.summary}
             </p>
-            <p className="mt-1 text-sm text-neutral-600">
+            <p className="mt-1 text-sm text-stone-600">
               {place.explanation.culturalContext}
             </p>
           </div>
 
           {place.nearby.length > 0 ? (
             <div>
-              <h4 className="text-sm font-medium text-neutral-700">Nearby</h4>
+              <h4 className="text-sm font-medium text-stone-700">Nearby</h4>
               <ol className="mt-1 space-y-2">
                 {place.nearby.map((n) => (
                   <li
                     key={n.name}
-                    className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3"
+                    className="rounded-xl border border-stone-100 bg-stone-50/60 p-3"
                   >
-                    <p className="font-medium text-neutral-900">{n.name}</p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="font-medium text-stone-900">{n.name}</p>
+                    <p className="text-xs text-stone-500">
                       {[n.category, typeof n.rating === "number" ? `rated ${n.rating}` : null]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
                     {n.address && (
-                      <p className="text-xs text-neutral-500">{n.address}</p>
+                      <p className="text-xs text-stone-500">{n.address}</p>
                     )}
                   </li>
                 ))}
               </ol>
             </div>
           ) : (
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-stone-500">
               No nearby places found in the current live search.
             </p>
           )}
 
           {place.photography && (
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-neutral-700">
+              <h4 className="text-sm font-medium text-stone-700">
                 Photography assistant
               </h4>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-stone-500">
                 {place.photography.advice.groundedIn === "verified_place"
                   ? "Based on this image and the verified place."
                   : "Based on this image only — the place is not verified."}
               </p>
 
               <div>
-                <h5 className="text-sm font-medium text-neutral-700">
+                <h5 className="text-sm font-medium text-stone-700">
                   How to shoot
                 </h5>
                 {(
@@ -604,10 +604,10 @@ export default function VisionAnalyzer() {
                   ([label, tips]) =>
                     tips.length > 0 && (
                       <div key={label} className="mt-1">
-                        <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
                           {label}
                         </p>
-                        <ul className="mt-0.5 list-disc space-y-0.5 pl-5 text-sm text-neutral-600">
+                        <ul className="mt-0.5 list-disc space-y-0.5 pl-5 text-sm text-stone-600">
                           {tips.map((t, i) => (
                             <li key={i}>{t}</li>
                           ))}
@@ -619,10 +619,10 @@ export default function VisionAnalyzer() {
 
               {place.photography.advice.poseSuggestions.length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium text-neutral-700">
+                  <h5 className="text-sm font-medium text-stone-700">
                     Pose ideas
                   </h5>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-neutral-600">
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-stone-600">
                     {place.photography.advice.poseSuggestions.map((p, i) => (
                       <li key={i}>{p}</li>
                     ))}
@@ -639,7 +639,7 @@ export default function VisionAnalyzer() {
               )}
 
               <div>
-                <h5 className="text-sm font-medium text-neutral-700">
+                <h5 className="text-sm font-medium text-stone-700">
                   Photo spots nearby
                 </h5>
                 {place.photography.photoSpots.length > 0 ? (
@@ -647,10 +647,10 @@ export default function VisionAnalyzer() {
                     {place.photography.photoSpots.map((s) => (
                       <li
                         key={s.name}
-                        className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3"
+                        className="rounded-xl border border-stone-100 bg-stone-50/60 p-3"
                       >
-                        <p className="font-medium text-neutral-900">{s.name}</p>
-                        <p className="text-xs text-neutral-500">
+                        <p className="font-medium text-stone-900">{s.name}</p>
+                        <p className="text-xs text-stone-500">
                           {[
                             s.category,
                             typeof s.rating === "number" ? `rated ${s.rating}` : null,
@@ -659,15 +659,15 @@ export default function VisionAnalyzer() {
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
-                        <p className="mt-0.5 text-xs text-neutral-500">{s.reason}</p>
+                        <p className="mt-0.5 text-xs text-stone-500">{s.reason}</p>
                         {s.address && (
-                          <p className="text-xs text-neutral-500">{s.address}</p>
+                          <p className="text-xs text-stone-500">{s.address}</p>
                         )}
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <p className="mt-1 text-sm text-neutral-600">
+                  <p className="mt-1 text-sm text-stone-600">
                     No photo spots found in live Maps data right now.
                   </p>
                 )}

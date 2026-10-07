@@ -57,8 +57,8 @@ export function planSignature(plan: TripPlanData): string {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-sky-600";
-const labelCls = "block text-sm font-medium text-neutral-700";
+  "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900 outline-none placeholder:text-stone-400 focus:border-teal-800";
+const labelCls = "block text-sm font-medium text-stone-700";
 
 export default function TripForm() {
   const [destination, setDestination] = useState("Jaipur");
@@ -154,7 +154,7 @@ export default function TripForm() {
     <div>
       <form
         onSubmit={onSubmit}
-        className="grid gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
+        className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
       >
         <div>
           <label className={labelCls} htmlFor="destination">
@@ -236,8 +236,8 @@ export default function TripForm() {
                 aria-pressed={interests.includes(i)}
                 className={`rounded-full px-3 py-1 text-sm ${
                   interests.includes(i)
-                    ? "bg-neutral-900 text-white"
-                    : "border border-neutral-300 bg-white text-neutral-600"
+                    ? "bg-stone-900 text-white"
+                    : "border border-stone-300 bg-white text-stone-600"
                 }`}
               >
                 {i}
@@ -256,8 +256,8 @@ export default function TripForm() {
                 aria-pressed={pace === p}
                 className={`rounded-full px-3 py-1 text-sm capitalize ${
                   pace === p
-                    ? "bg-neutral-900 text-white"
-                    : "border border-neutral-300 bg-white text-neutral-600"
+                    ? "bg-stone-900 text-white"
+                    : "border border-stone-300 bg-white text-stone-600"
                 }`}
               >
                 {p}
@@ -268,7 +268,7 @@ export default function TripForm() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-xl bg-neutral-900 px-5 py-3 font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+          className="rounded-xl bg-stone-900 px-5 py-3 font-medium text-white hover:bg-stone-700 disabled:opacity-50"
         >
           {loading ? "Planning…" : "Plan my trip"}
         </button>
@@ -315,12 +315,12 @@ export default function TripForm() {
               className={`w-full rounded-xl border px-5 py-3 font-medium ${
                 approved
                   ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-                  : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-500"
+                  : "border-stone-300 bg-white text-stone-900 hover:border-stone-500"
               }`}
             >
               {approved ? "Approved ✓ (tap to revoke)" : "Approve itinerary"}
             </button>
-            <p className="mt-1 text-xs text-neutral-500">
+            <p className="mt-1 text-xs text-stone-500">
               Approval is explicit and only marks the itinerary as reviewed —
               nothing is booked.
             </p>

@@ -64,7 +64,7 @@ const STATUS_STYLE: Record<SituationStatus, string> = {
   CLEAR: "bg-emerald-100 text-emerald-900",
   ATTENTION: "bg-amber-100 text-amber-900",
   DISRUPTION: "bg-red-100 text-red-900",
-  UNVERIFIED: "bg-neutral-100 text-neutral-600",
+  UNVERIFIED: "bg-stone-100 text-stone-600",
 };
 
 const STATUS_COPY: Record<SituationStatus, string> = {
@@ -313,11 +313,11 @@ export default function LiveSituationPanel({
   const hasDisruption = result?.status === "DISRUPTION";
 
   return (
-    <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
+    <div className="mt-4 rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h4 className="font-bold text-neutral-900">Live conditions</h4>
-          <p className="text-xs text-neutral-500">
+          <h4 className="font-bold text-stone-900">Live conditions</h4>
+          <p className="text-xs text-stone-500">
             Checks upcoming places against live information. Nothing is changed.
           </p>
         </div>
@@ -325,7 +325,7 @@ export default function LiveSituationPanel({
           type="button"
           onClick={() => void runCheck()}
           disabled={loading}
-          className="shrink-0 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+          className="shrink-0 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-600 disabled:opacity-50"
         >
           {loading ? "Checking live…" : result ? "Re-check live" : "Check Live Conditions"}
         </button>
@@ -345,19 +345,19 @@ export default function LiveSituationPanel({
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                known ? STATUS_STYLE[known] : "bg-neutral-100 text-neutral-600"
+                known ? STATUS_STYLE[known] : "bg-stone-100 text-stone-600"
               }`}
             >
               {known ? STATUS_LABEL[known] : result.status}
             </span>
             {checkedAt && (
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs text-stone-500">
                 Live check · {checkedAt}
               </span>
             )}
           </div>
           {known && (
-            <p className="text-sm text-neutral-600">{STATUS_COPY[known]}</p>
+            <p className="text-sm text-stone-600">{STATUS_COPY[known]}</p>
           )}
           {hasDisruption && (
             <p
@@ -369,7 +369,7 @@ export default function LiveSituationPanel({
             </p>
           )}
           {result.situations.length === 0 ? (
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-stone-600">
               No concerning signals in this check.
             </p>
           ) : (
@@ -377,17 +377,17 @@ export default function LiveSituationPanel({
               {result.situations.map((s) => (
                 <li
                   key={s.situationId}
-                  className="rounded-xl border border-neutral-200 bg-white p-3"
+                  className="rounded-xl border border-stone-200 bg-white p-3"
                 >
-                  <p className="font-medium text-neutral-900">{s.title}</p>
-                  <p className="mt-0.5 text-sm text-neutral-600">{s.description}</p>
+                  <p className="font-medium text-stone-900">{s.title}</p>
+                  <p className="mt-0.5 text-sm text-stone-600">{s.description}</p>
                   {s.affectedItemIds.length > 0 && (
-                    <p className="mt-1 text-xs text-neutral-500">
+                    <p className="mt-1 text-xs text-stone-500">
                       Affects:{" "}
                       {s.affectedItemIds.map((id) => titleOf(trip, id)).join(" · ")}
                     </p>
                   )}
-                  <p className="mt-1 text-xs text-neutral-400">
+                  <p className="mt-1 text-xs text-stone-400">
                     Source: {s.evidence.engine === "google_maps" ? "Google Maps" : "Google Search"}
                     {" · confidence "}{s.confidence}
                   </p>
@@ -396,7 +396,7 @@ export default function LiveSituationPanel({
             </ol>
           )}
           {result.warnings.length > 0 && (
-            <ul className="list-disc space-y-1 pl-5 text-xs text-neutral-500">
+            <ul className="list-disc space-y-1 pl-5 text-xs text-stone-500">
               {result.warnings.map((w) => (
                 <li key={w}>{w}</li>
               ))}
@@ -407,21 +407,21 @@ export default function LiveSituationPanel({
               type="button"
               onClick={() => void loadProposal()}
               disabled={proposalLoading}
-              className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-900 hover:border-neutral-500 disabled:opacity-50"
+              className="w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 hover:border-stone-500 disabled:opacity-50"
             >
               {proposalLoading ? "Finding live alternatives…" : "Find alternatives"}
             </button>
           )}
           {proposal && (
-            <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-3">
-              <p className="text-sm font-medium text-neutral-900">
+            <div className="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+              <p className="text-sm font-medium text-stone-900">
                 Proposed changes
               </p>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-stone-500">
                 This is a proposed change. Your itinerary has not been changed.
               </p>
               {proposal.changes.length === 0 && (
-                <p className="text-sm text-neutral-600">
+                <p className="text-sm text-stone-600">
                   No safe alternative could be verified right now.
                 </p>
               )}
@@ -433,7 +433,7 @@ export default function LiveSituationPanel({
                 return (
                   <div
                     key={change.itemId}
-                    className="rounded-lg bg-neutral-50/60 p-2.5"
+                    className="rounded-lg bg-stone-50/60 p-2.5"
                   >
                     <label className="flex cursor-pointer items-start gap-2">
                       <input
@@ -445,18 +445,18 @@ export default function LiveSituationPanel({
                         className="mt-1"
                       />
                       <span>
-                        <span className="block text-sm text-neutral-500">
+                        <span className="block text-sm text-stone-500">
                           Replace: {change.originalTitle}
                         </span>
-                        <span className="block font-medium text-neutral-900">
+                        <span className="block font-medium text-stone-900">
                           With: {change.replacement.title}
                         </span>
                       </span>
                     </label>
-                    <p className="mt-0.5 text-xs text-neutral-500">
+                    <p className="mt-0.5 text-xs text-stone-500">
                       {change.reasons.join(" · ")}
                     </p>
-                    <p className="mt-0.5 text-xs text-neutral-500">
+                    <p className="mt-0.5 text-xs text-stone-500">
                       Re-check: {change.recheck.status}
                     </p>
                     {verified ? (
@@ -464,12 +464,12 @@ export default function LiveSituationPanel({
                         type="button"
                         disabled={applying}
                         onClick={() => void applyChanges([change.itemId])}
-                        className="mt-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                        className="mt-2 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
                       >
                         {applying ? "Applying…" : "Apply Change"}
                       </button>
                     ) : (
-                      <p className="mt-1 text-xs text-neutral-500">
+                      <p className="mt-1 text-xs text-stone-500">
                         Replacement not verified — cannot apply.
                       </p>
                     )}
@@ -482,7 +482,7 @@ export default function LiveSituationPanel({
                     type="button"
                     disabled={applying || selectedIds.length === 0}
                     onClick={() => void applyChanges(selectedIds)}
-                    className="rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+                    className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-600 disabled:opacity-50"
                   >
                     {applying
                       ? "Applying…"
@@ -492,7 +492,7 @@ export default function LiveSituationPanel({
                     type="button"
                     disabled={applying}
                     onClick={keepOriginal}
-                    className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:border-neutral-500 disabled:opacity-50"
+                    className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 hover:border-stone-500 disabled:opacity-50"
                   >
                     Keep Original
                   </button>
@@ -502,13 +502,13 @@ export default function LiveSituationPanel({
                 <button
                   type="button"
                   onClick={keepOriginal}
-                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:border-neutral-500"
+                  className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 hover:border-stone-500"
                 >
                   Keep Original
                 </button>
               )}
               {proposal.unfixable.length > 0 && (
-                <div className="text-sm text-neutral-600">
+                <div className="text-sm text-stone-600">
                   <p className="font-medium">Could not fix:</p>
                   <ul className="list-disc pl-5">
                     {proposal.unfixable.map((u) => (
@@ -520,7 +520,7 @@ export default function LiveSituationPanel({
                 </div>
               )}
               {proposal.warnings.length > 0 && (
-                <ul className="list-disc space-y-1 pl-5 text-xs text-neutral-500">
+                <ul className="list-disc space-y-1 pl-5 text-xs text-stone-500">
                   {proposal.warnings.map((w) => (
                     <li key={w}>{w}</li>
                   ))}
@@ -529,7 +529,7 @@ export default function LiveSituationPanel({
             </div>
           )}
           {freshCheckLoading && (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-stone-500">
               Re-verifying the updated itinerary against live information…
             </p>
           )}

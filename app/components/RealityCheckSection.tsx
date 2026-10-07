@@ -169,7 +169,7 @@ export default function RealityCheckSection({
         type="button"
         onClick={() => void runCheck(plan)}
         disabled={checking}
-        className="w-full rounded-xl bg-sky-700 px-5 py-3 font-medium text-white shadow-sm hover:bg-sky-600 disabled:opacity-50"
+        className="w-full rounded-xl bg-teal-700 px-5 py-3 font-medium text-white shadow-sm hover:bg-teal-600 disabled:opacity-50"
       >
         {checking
           ? "Checking against live information…"
@@ -196,12 +196,12 @@ export default function RealityCheckSection({
               type="button"
               onClick={() => void loadProposal()}
               disabled={proposalLoading}
-              className="w-full rounded-xl border border-neutral-300 bg-white px-5 py-3 font-medium text-neutral-900 hover:border-neutral-500 disabled:opacity-50"
+              className="w-full rounded-xl border border-stone-300 bg-white px-5 py-3 font-medium text-stone-900 hover:border-stone-500 disabled:opacity-50"
             >
               {proposalLoading ? "Finding live alternatives…" : "Propose fixes"}
             </button>
           ) : (
-            <p className="rounded-xl bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+            <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
               No actionable findings — nothing to fix.
             </p>
           )}
@@ -209,10 +209,10 @@ export default function RealityCheckSection({
       )}
 
       {proposal && (
-        <div className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h3 className="font-bold text-neutral-900">Proposed fixes</h3>
+        <div className="mt-4 space-y-3 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+          <h3 className="font-bold text-stone-900">Proposed fixes</h3>
           {proposal.changes.length === 0 && (
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-stone-600">
               No live alternatives could be verified right now.
             </p>
           )}
@@ -224,18 +224,18 @@ export default function RealityCheckSection({
             return (
               <div
                 key={change.itemId}
-                className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3"
+                className="rounded-xl border border-stone-100 bg-stone-50/60 p-3"
               >
-                <p className="text-sm text-neutral-500">
+                <p className="text-sm text-stone-500">
                   Replace: {change.originalTitle}
                 </p>
-                <p className="font-medium text-neutral-900">
+                <p className="font-medium text-stone-900">
                   With: {change.replacement.title}
                 </p>
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs text-stone-500">
                   {change.reasons.join(" · ")}
                 </p>
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs text-stone-500">
                   Re-check: {statusLabel(change.recheck.status)}
                 </p>
                 {applyable ? (
@@ -243,12 +243,12 @@ export default function RealityCheckSection({
                     type="button"
                     disabled={busy}
                     onClick={() => void applyChanges([change.itemId])}
-                    className="mt-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                    className="mt-2 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
                   >
                     {applyingId === change.itemId ? "Applying…" : "Apply Fix"}
                   </button>
                 ) : (
-                  <p className="mt-2 text-xs text-neutral-500">
+                  <p className="mt-2 text-xs text-stone-500">
                     Replacement not verified — cannot apply.
                   </p>
                 )}
@@ -262,13 +262,13 @@ export default function RealityCheckSection({
               onClick={() =>
                 void applyChanges(applyableChanges.map((c) => c.itemId))
               }
-              className="w-full rounded-xl border border-neutral-900 px-5 py-2.5 text-sm font-medium text-neutral-900 hover:bg-neutral-100 disabled:opacity-50"
+              className="w-full rounded-xl border border-stone-900 px-5 py-2.5 text-sm font-medium text-stone-900 hover:bg-stone-100 disabled:opacity-50"
             >
               {applyingId ? "Applying…" : `Apply All (${applyableChanges.length})`}
             </button>
           )}
           {proposal.unfixable.length > 0 && (
-            <div className="text-sm text-neutral-600">
+            <div className="text-sm text-stone-600">
               <p className="font-medium">Could not fix:</p>
               <ul className="list-disc pl-5">
                 {proposal.unfixable.map((u) => (
@@ -282,7 +282,7 @@ export default function RealityCheckSection({
           <button
             type="button"
             onClick={keepOriginal}
-            className="w-full rounded-xl px-5 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100"
+            className="w-full rounded-xl px-5 py-2.5 text-sm text-stone-600 hover:bg-stone-100"
           >
             Keep Original
           </button>
@@ -290,7 +290,7 @@ export default function RealityCheckSection({
       )}
 
       {keptOriginal && !proposal && (
-        <p className="mt-3 rounded-xl bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+        <p className="mt-3 rounded-xl bg-stone-50 px-4 py-3 text-sm text-stone-600">
           Kept the original itinerary — nothing was changed.
         </p>
       )}

@@ -155,7 +155,7 @@ function errorMessage(json: unknown, fallback: string): string {
 const READINESS_STYLE: Record<Readiness, string> = {
   READY: "bg-emerald-100 text-emerald-900",
   NOT_READY: "bg-amber-100 text-amber-900",
-  ALREADY_ACTIVE: "bg-neutral-200 text-neutral-700",
+  ALREADY_ACTIVE: "bg-stone-200 text-stone-700",
   INVALID_STATE: "bg-red-100 text-red-900",
 };
 
@@ -170,7 +170,7 @@ const VERDICT_STYLE: Record<RecheckVerdict, string> = {
   CLEAR: "bg-emerald-100 text-emerald-900",
   NEEDS_ATTENTION: "bg-amber-100 text-amber-900",
   PROBLEM: "bg-red-100 text-red-900",
-  UNVERIFIED: "bg-neutral-200 text-neutral-700",
+  UNVERIFIED: "bg-stone-200 text-stone-700",
 };
 
 const VERDICT_LABEL: Record<RecheckVerdict, string> = {
@@ -315,9 +315,9 @@ export default function BookingHandoffPanel({
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <h3 className="font-bold text-neutral-900">Booking &amp; handoff</h3>
-      <p className="mt-1 text-sm text-neutral-600">
+    <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+      <h3 className="font-bold text-stone-900">Booking &amp; handoff</h3>
+      <p className="mt-1 text-sm text-stone-600">
         GhoomAI researches and verifies — you book directly with providers.
         Approve your itinerary above first; readiness requires an approved trip.
       </p>
@@ -325,7 +325,7 @@ export default function BookingHandoffPanel({
         type="button"
         onClick={() => void checkReadiness()}
         disabled={checking}
-        className="mt-3 w-full rounded-xl bg-neutral-900 px-5 py-3 font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+        className="mt-3 w-full rounded-xl bg-stone-900 px-5 py-3 font-medium text-white hover:bg-stone-700 disabled:opacity-50"
       >
         {checking ? "Checking readiness…" : "Check booking readiness"}
       </button>
@@ -350,7 +350,7 @@ export default function BookingHandoffPanel({
           </p>
 
           {result.reasons.length > 0 && (
-            <ul className="list-disc space-y-1 pl-5 text-sm text-neutral-700">
+            <ul className="list-disc space-y-1 pl-5 text-sm text-stone-700">
               {result.reasons.map((r) => (
                 <li key={r}>{r}</li>
               ))}
@@ -359,23 +359,23 @@ export default function BookingHandoffPanel({
 
           {result.readiness === "READY" && (
             <div>
-              <p className="text-sm font-medium text-neutral-900">
+              <p className="text-sm font-medium text-stone-900">
                 To book or search ({eligible.length}):
               </p>
               <ul className="mt-2 space-y-2">
                 {eligible.map((item) => (
                   <li
                     key={item.itemId}
-                    className="rounded-xl bg-neutral-50 p-3 text-sm"
+                    className="rounded-xl bg-stone-50 p-3 text-sm"
                   >
-                    <p className="font-medium text-neutral-900">
-                      <span className="mr-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    <p className="font-medium text-stone-900">
+                      <span className="mr-2 text-xs font-medium uppercase tracking-wide text-stone-500">
                         {statusLabel(item.kind)}
                       </span>
                       {item.title}
                     </p>
                     {item.searchHint && (
-                      <p className="mt-1 text-xs text-neutral-500">
+                      <p className="mt-1 text-xs text-stone-500">
                         Search hint: {item.searchHint}
                       </p>
                     )}
@@ -383,7 +383,7 @@ export default function BookingHandoffPanel({
                 ))}
               </ul>
               {ineligible.length > 0 && (
-                <p className="mt-2 text-xs text-neutral-500">
+                <p className="mt-2 text-xs text-stone-500">
                   {ineligible.length} informational item
                   {ineligible.length === 1 ? "" : "s"} need
                   {ineligible.length === 1 ? "s" : ""} no booking.
@@ -394,7 +394,7 @@ export default function BookingHandoffPanel({
                 type="button"
                 onClick={() => void findOptions()}
                 disabled={discovering}
-                className="mt-3 w-full rounded-xl bg-sky-700 px-5 py-3 font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+                className="mt-3 w-full rounded-xl bg-teal-700 px-5 py-3 font-medium text-white hover:bg-teal-600 disabled:opacity-50"
               >
                 {discovering
                   ? "Searching live options…"
@@ -405,21 +405,21 @@ export default function BookingHandoffPanel({
             </div>
           )}
 
-          <p className="rounded-xl bg-neutral-50 px-4 py-3 text-xs text-neutral-500">
+          <p className="rounded-xl bg-stone-50 px-4 py-3 text-xs text-stone-500">
             {result.disclaimer} No booking was made and nothing is confirmed.
           </p>
         </div>
       )}
 
       {discovery && (
-        <div className="mt-4 space-y-3 border-t border-neutral-200 pt-4">
+        <div className="mt-4 space-y-3 border-t border-stone-200 pt-4">
           <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
             BOOKING NOT COMPLETED BY GHOOMAI — options below are live search
             leads for you to continue externally.
           </p>
 
           {discovery.warnings.length > 0 && (
-            <ul className="list-disc space-y-1 pl-5 text-xs text-neutral-500">
+            <ul className="list-disc space-y-1 pl-5 text-xs text-stone-500">
               {discovery.warnings.map((w) => (
                 <li key={w}>{w}</li>
               ))}
@@ -431,14 +431,14 @@ export default function BookingHandoffPanel({
             return (
               <div
                 key={item.itemId}
-                className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3"
+                className="rounded-xl border border-stone-100 bg-stone-50/60 p-3"
               >
-                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
                   {statusLabel(item.kind)} · {item.status === "READY" ? "Live search results" : item.status === "NO_RESULTS" ? "No results" : "Search failed"}
                 </p>
-                <p className="font-medium text-neutral-900">{item.title}</p>
+                <p className="font-medium text-stone-900">{item.title}</p>
                 {item.reason && (
-                  <p className="mt-1 text-xs text-neutral-500">{item.reason}</p>
+                  <p className="mt-1 text-xs text-stone-500">{item.reason}</p>
                 )}
                 {item.options.length > 0 && (
                   <ul className="mt-2 space-y-2">
@@ -450,15 +450,15 @@ export default function BookingHandoffPanel({
                           key={option.optionId}
                           className="rounded-lg bg-white p-3 text-sm shadow-sm"
                         >
-                          <p className="font-medium text-neutral-900">
+                          <p className="font-medium text-stone-900">
                             {option.title}
                           </p>
-                          <p className="mt-1 text-xs text-neutral-500">
+                          <p className="mt-1 text-xs text-stone-500">
                             <span
                               className={`mr-2 rounded-full px-2 py-0.5 font-medium ${
                                 option.leadType === "CORROBORATED"
                                   ? "bg-emerald-100 text-emerald-900"
-                                  : "bg-neutral-100 text-neutral-600"
+                                  : "bg-stone-100 text-stone-600"
                               }`}
                             >
                               {option.leadType === "CORROBORATED"
@@ -469,7 +469,7 @@ export default function BookingHandoffPanel({
                             {formatCheckedAt(option.observedAt)}
                           </p>
                           {option.snippet && (
-                            <p className="mt-1 text-xs text-neutral-600">
+                            <p className="mt-1 text-xs text-stone-600">
                               {option.snippet}
                             </p>
                           )}
@@ -477,12 +477,12 @@ export default function BookingHandoffPanel({
                             {option.url ? (
                               <ExternalLink
                                 href={option.url}
-                                className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+                                className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700"
                               >
                                 Continue to provider ↗
                               </ExternalLink>
                             ) : (
-                              <p className="text-xs text-neutral-500">
+                              <p className="text-xs text-stone-500">
                                 Search lead — no direct provider page was
                                 returned.
                               </p>
@@ -492,7 +492,7 @@ export default function BookingHandoffPanel({
                                 type="button"
                                 disabled={busy}
                                 onClick={() => void selectOption(item.itemId, option)}
-                                className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-900 hover:border-neutral-500 disabled:opacity-50"
+                                className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-900 hover:border-stone-500 disabled:opacity-50"
                               >
                                 {selectingId === option.optionId
                                   ? "Selecting…"
@@ -518,16 +518,16 @@ export default function BookingHandoffPanel({
             );
           })}
 
-          <p className="rounded-xl bg-neutral-50 px-4 py-3 text-xs text-neutral-500">
+          <p className="rounded-xl bg-stone-50 px-4 py-3 text-xs text-stone-500">
             {discovery.disclaimer}
           </p>
         </div>
       )}
 
       {result?.readiness === "READY" && (
-        <div className="mt-4 space-y-3 border-t border-neutral-200 pt-4">
-          <h4 className="font-bold text-neutral-900">Final pre-trip check</h4>
-          <p className="text-sm text-neutral-600">
+        <div className="mt-4 space-y-3 border-t border-stone-200 pt-4">
+          <h4 className="font-bold text-stone-900">Final pre-trip check</h4>
+          <p className="text-sm text-stone-600">
             Freshly re-verifies the approved itinerary
             {Object.keys(selectedOptions).length > 0
               ? ` and ${Object.keys(selectedOptions).length} selected option${Object.keys(selectedOptions).length === 1 ? "" : "s"}`
@@ -557,7 +557,7 @@ export default function BookingHandoffPanel({
                   {VERDICT_LABEL[recheck.verdict]}
                 </span>
               </p>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-stone-500">
                 Checked {formatCheckedAt(recheck.checkedAt)} ·{" "}
                 {recheck.summary.verified} verified ·{" "}
                 {recheck.summary.needsAttention} needing attention ·{" "}
@@ -566,7 +566,7 @@ export default function BookingHandoffPanel({
               </p>
 
               {recheck.warnings.length > 0 && (
-                <ul className="list-disc space-y-1 pl-5 text-xs text-neutral-500">
+                <ul className="list-disc space-y-1 pl-5 text-xs text-stone-500">
                   {recheck.warnings.map((w) => (
                     <li key={w}>{w}</li>
                   ))}
@@ -575,23 +575,23 @@ export default function BookingHandoffPanel({
 
               {recheck.findings.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-neutral-900">
+                  <p className="text-sm font-medium text-stone-900">
                     What was checked ({recheck.findings.length}):
                   </p>
                   <ul className="mt-2 space-y-2">
                     {recheck.findings.map((finding) => (
                       <li
                         key={finding.itemId}
-                        className="rounded-xl bg-neutral-50 p-3 text-sm"
+                        className="rounded-xl bg-stone-50 p-3 text-sm"
                       >
-                        <p className="font-medium text-neutral-900">
-                          <span className="mr-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                        <p className="font-medium text-stone-900">
+                          <span className="mr-2 text-xs font-medium uppercase tracking-wide text-stone-500">
                             {statusLabel(finding.status)}
                           </span>
                           {finding.title}
                         </p>
                         {finding.reasons.slice(0, 2).map((reason) => (
-                          <p key={reason} className="mt-1 text-xs text-neutral-600">
+                          <p key={reason} className="mt-1 text-xs text-stone-600">
                             {reason}
                           </p>
                         ))}
@@ -603,26 +603,26 @@ export default function BookingHandoffPanel({
 
               {recheck.options.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-neutral-900">
+                  <p className="text-sm font-medium text-stone-900">
                     Selected option status:
                   </p>
                   <ul className="mt-2 space-y-2">
                     {recheck.options.map((option) => (
                       <li
                         key={option.optionId}
-                        className="rounded-xl bg-neutral-50 p-3 text-sm"
+                        className="rounded-xl bg-stone-50 p-3 text-sm"
                       >
-                        <p className="font-medium text-neutral-900">
-                          <span className="mr-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                        <p className="font-medium text-stone-900">
+                          <span className="mr-2 text-xs font-medium uppercase tracking-wide text-stone-500">
                             {statusLabel(option.status)}
                           </span>
                           {option.title}
                         </p>
-                        <p className="mt-1 text-xs text-neutral-500">
+                        <p className="mt-1 text-xs text-stone-500">
                           {option.provider}
                         </p>
                         {option.reasons.slice(0, 2).map((reason) => (
-                          <p key={reason} className="mt-1 text-xs text-neutral-600">
+                          <p key={reason} className="mt-1 text-xs text-stone-600">
                             {reason}
                           </p>
                         ))}
@@ -648,7 +648,7 @@ export default function BookingHandoffPanel({
                 </p>
               )}
 
-              <p className="rounded-xl bg-neutral-50 px-4 py-3 text-xs text-neutral-500">
+              <p className="rounded-xl bg-stone-50 px-4 py-3 text-xs text-stone-500">
                 {recheck.disclaimer}
               </p>
             </div>

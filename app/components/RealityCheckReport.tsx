@@ -79,10 +79,10 @@ export const STATUS_COPY: Record<CheckStatus, string> = {
 };
 
 const STATUS_STYLE: Record<CheckStatus, string> = {
-  VERIFIED: "bg-emerald-100 text-emerald-900",
-  NEEDS_ATTENTION: "bg-amber-100 text-amber-900",
-  PROBLEM: "bg-red-100 text-red-900",
-  UNVERIFIED: "bg-neutral-100 text-neutral-600",
+  VERIFIED: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  NEEDS_ATTENTION: "border-amber-200 bg-amber-50 text-amber-800",
+  PROBLEM: "border-red-200 bg-red-50 text-red-800",
+  UNVERIFIED: "border-stone-200 bg-stone-100 text-stone-600",
 };
 
 export const STATUS_LABEL: Record<CheckStatus, string> = {
@@ -234,16 +234,35 @@ export function parseRealityCheckResponse(
   };
 }
 
+const STATUS_DOT: Record<CheckStatus, string> = {
+  VERIFIED: "bg-emerald-600",
+  NEEDS_ATTENTION: "bg-amber-500",
+  PROBLEM: "bg-red-600",
+  UNVERIFIED: "bg-stone-400",
+};
+
+/** Status glyphs are decorative; the adjacent text label carries meaning. */
+const STATUS_GLYPH: Record<CheckStatus, string> = {
+  VERIFIED: "✓",
+  NEEDS_ATTENTION: "⚠",
+  PROBLEM: "✕",
+  UNVERIFIED: "•",
+};
+
 function statusBadge(status: string) {
   const known = KNOWN_STATUSES.has(status)
     ? (status as CheckStatus)
     : null;
   return (
     <span
-      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        known ? STATUS_STYLE[known] : "bg-neutral-100 text-neutral-600"
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+        known ? STATUS_STYLE[known] : "border-stone-200 bg-stone-100 text-stone-600"
       }`}
     >
+      <span
+        aria-hidden="true"
+        className={`inline-block h-1.5 w-1.5 rounded-full ${known ? STATUS_DOT[known] : "bg-stone-400"}`}
+      />
       {known ? STATUS_LABEL[known] : status}
     </span>
   );
@@ -268,7 +287,7 @@ function FreshEvidenceLine({ evidence }: { evidence?: CheckEvidence }) {
   }
   if (bits.length === 0) return null;
   return (
-    <p className="mt-1 text-xs text-neutral-500">
+    <p className="mt-1.5 text-xs text-stone-500">
       Fresh evidence: {bits.join(" · ")}
     </p>
   );
@@ -288,23 +307,32 @@ export default function RealityCheckReport({
     data.summary.unverified;
 
   return (
-    <section className="mt-6 space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-lg font-bold text-neutral-900">RealityCheck</h3>
-          {statusBadge(overall)}
+    <section
+      aria-label="RealityCheck report"
+      className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm"
+    >
+      <div className="border-b border-teal-900/10 bg-gradient-to-r from-teal-950 via-teal-900 to-stone-800 p-5 pb-4">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-200">
+          RealityCheck · checked against live information
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <h3 className="text-lg font-bold text-white">RealityCheck</h3>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+            {STATUS_GLYPH[overall]} {STATUS_LABEL[overall]}
+          </span>
         </div>
-        <p className="mt-1 text-sm text-neutral-600">
+        <p className="mt-1 text-sm leading-relaxed text-stone-200">
           {STATUS_COPY[overall]}
         </p>
         {checkedAt && (
-          <p className="mt-1 text-xs text-neutral-500">
+          <p className="mt-1 text-xs text-stone-300">
             Checked against live information · {checkedAt}
           </p>
         )}
       </div>
+      <div className="space-y-4 p-5 pt-4">
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="list" aria-label="Check summary">
         {(
           [
             ["VERIFIED", data.summary.verified],
@@ -315,10 +343,14 @@ export default function RealityCheckReport({
         ).map(([status, count]) => (
           <div
             key={status}
-            className="rounded-xl bg-neutral-50 px-3 py-2 text-center"
+            role="listitem"
+            className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-2.5 text-center"
           >
-            <p className="text-xl font-bold text-neutral-900">{count}</p>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xl font-bold tabular-nums text-stone-900">
+              <span aria-hidden="true" className="mr-1 text-sm">{STATUS_GLYPH[status]}</span>
+              {count}
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-stone-500">
               {STATUS_LABEL[status]}
             </p>
           </div>
@@ -326,21 +358,21 @@ export default function RealityCheckReport({
       </div>
 
       {total > 0 && (
-        <ol className="space-y-3">
+        <ol className="space-y-2.5">
           {data.items.map((item) => (
             <li
               key={item.itemId}
-              className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3"
+              className="rounded-xl border border-stone-200 bg-white p-3.5"
             >
               <div className="flex flex-wrap items-center gap-2">
                 {statusBadge(item.status)}
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-stone-500">
                   {KIND_LABEL[item.kind] ?? item.kind}
                 </span>
               </div>
-              <p className="mt-1 font-medium text-neutral-900">{item.title}</p>
+              <p className="mt-1.5 break-words font-semibold text-stone-900">{item.title}</p>
               {item.reasons.length > 0 && (
-                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-neutral-600">
+                <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm leading-relaxed text-stone-600">
                   {item.reasons.map((r, i) => (
                     <li key={i}>{r}</li>
                   ))}
@@ -353,7 +385,7 @@ export default function RealityCheckReport({
       )}
 
       {data.warnings.length > 0 && (
-        <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
           <ul className="list-disc space-y-1 pl-5">
             {data.warnings.map((w) => (
               <li key={w}>{w}</li>
@@ -361,6 +393,7 @@ export default function RealityCheckReport({
           </ul>
         </div>
       )}
+      </div>
     </section>
   );
 }

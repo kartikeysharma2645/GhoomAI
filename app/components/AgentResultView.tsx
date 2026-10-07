@@ -6,6 +6,7 @@ import ItineraryView, { type TripPlanData } from "./ItineraryView";
 import RealityCheckReport, { type RealityCheckData } from "./RealityCheckReport";
 import ResultCards, { type AskResponseData } from "./ResultCards";
 import { formatCheckedAt, statusLabel } from "./agentChatHelpers";
+import { AgentCard, Eyebrow } from "./agent-ui";
 
 /**
  * Maps a typed `/api/agent` turn to rendered output (Phase 10 Prompt 3).
@@ -37,12 +38,21 @@ function textList(value: unknown, limit = 4): string[] {
   return value.filter((v): v is string => typeof v === "string").slice(0, limit);
 }
 
-function AdapterCard({ title, children }: { title: string; children: React.ReactNode }) {
+function AdapterCard({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-bold text-neutral-900">{title}</p>
-      <div className="mt-2 space-y-2 text-sm text-neutral-700">{children}</div>
-    </div>
+    <AgentCard>
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <p className="mt-1 text-[15px] font-bold text-stone-900">{title}</p>
+      <div className="mt-2 space-y-2 text-sm leading-relaxed text-stone-700">{children}</div>
+    </AgentCard>
   );
 }
 
@@ -53,29 +63,51 @@ function ProposalAdapter({ proposal }: { proposal: unknown }) {
     ? proposal.unfixable.filter(isRecord)
     : [];
   if (changes.length === 0 && unfixable.length === 0) {
-    return <p className="text-sm text-neutral-600">No verified alternatives right now.</p>;
+    return (
+      <AgentCard>
+        <p className="text-sm text-stone-600">No verified alternatives right now.</p>
+      </AgentCard>
+    );
   }
   return (
-    <div className="space-y-2">
-      {changes.map((c, i) => (
-        <div key={String(c.itemId ?? i)} className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
-          <p className="text-sm text-neutral-500">
-            Replace: {String(c.originalTitle ?? c.itemId ?? "item")}
-          </p>
-          <p className="font-medium text-neutral-900">
-            With: {isRecord(c.replacement) ? String(c.replacement.title ?? "?") : "?"}
-          </p>
-          {textList(c.reasons, 2).map((r) => (
-            <p key={r} className="mt-1 text-xs text-neutral-500">{r}</p>
-          ))}
-        </div>
-      ))}
+    <section aria-label="Replacement options" className="space-y-2.5">
+      <Eyebrow>Replacement options</Eyebrow>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {changes.map((c, i) => {
+          const replacement = isRecord(c.replacement) ? c.replacement : null;
+          const title = replacement && typeof replacement.title === "string" ? replacement.title : "?";
+          const detail =
+            replacement && typeof replacement.detail === "string" ? replacement.detail : null;
+          return (
+            <article
+              key={String(c.itemId ?? i)}
+              className="flex flex-col rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+            >
+              <p className="text-xs text-stone-500">
+                Instead of {String(c.originalTitle ?? c.itemId ?? "this stop")}
+              </p>
+              <h4 className="mt-0.5 break-words text-[15px] font-bold text-stone-900">{title}</h4>
+              {detail && <p className="mt-1 text-[13px] text-stone-600">{detail}</p>}
+              {textList(c.reasons, 2).map((r) => (
+                <p key={r} className="mt-1 text-xs leading-relaxed text-stone-500">
+                  {r}
+                </p>
+              ))}
+              {typeof c.checkedAt === "string" && (
+                <p className="mt-2 text-[11px] text-stone-400">
+                  Verified {formatCheckedAt(c.checkedAt)}
+                </p>
+              )}
+            </article>
+          );
+        })}
+      </div>
       {unfixable.length > 0 && (
-        <p className="text-xs text-neutral-500">
+        <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs text-stone-500">
           Could not fix: {unfixable.map((u) => String(u.title ?? u.itemId)).join(", ")}
         </p>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -87,48 +119,69 @@ function OptionsAdapter({ discovery }: { discovery: unknown }) {
   );
   if (withOptions.length === 0) {
     return (
-      <p className="text-sm text-neutral-600">
-        No suitable live options were found. Try again later, or adjust the
-        itinerary and run a fresh check first.
-      </p>
+      <AgentCard>
+        <p className="text-sm text-stone-600">
+          No suitable live options were found. Try again later, or adjust the
+          itinerary and run a fresh check first.
+        </p>
+      </AgentCard>
     );
   }
   return (
-    <div className="space-y-2">
-      {withOptions.map((item, i) => {
-        const options = Array.isArray(item.options) ? item.options.filter(isRecord) : [];
-        if (options.length === 0) return null;
-        return (
-          <div key={String(item.itemId ?? i)} className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
-            <p className="font-medium text-neutral-900">{String(item.title ?? "Options")}</p>
-            <ul className="mt-2 space-y-2">
-              {options.map((o, j) => (
-                <li key={String(o.optionId ?? j)} className="rounded-lg bg-neutral-50 p-2 text-sm">
-                  <p className="font-medium text-neutral-900">{String(o.title ?? "?")}</p>
-                  <p className="text-xs text-neutral-500">
-                    {String(o.leadType === "CORROBORATED" ? "Corroborated · " : "Search lead · ")}
-                    {String(o.provider ?? "")}
-                  </p>
-                  {typeof o.url === "string" && o.url ? (
-                    <ExternalLink
-                      href={o.url}
-                      className="mt-1 inline-block text-sm font-medium text-sky-700 hover:underline"
-                    >
-                      Continue to provider ↗
-                    </ExternalLink>
-                  ) : (
-                    <p className="text-xs text-neutral-500">Search lead — no direct page.</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
-      <p className="text-xs text-neutral-500">
+    <section aria-label="Booking options" className="space-y-2.5">
+      <Eyebrow>Booking options · external handoff</Eyebrow>
+      <div className="space-y-2.5">
+        {withOptions.map((item, i) => {
+          const options = Array.isArray(item.options) ? item.options.filter(isRecord) : [];
+          if (options.length === 0) return null;
+          return (
+            <article
+              key={String(item.itemId ?? i)}
+              className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+            >
+              <h4 className="break-words text-[15px] font-bold text-stone-900">
+                {String(item.title ?? "Options")}
+              </h4>
+              <ul className="mt-2.5 space-y-2">
+                {options.map((o, j) => (
+                  <li
+                    key={String(o.optionId ?? j)}
+                    className="rounded-xl bg-stone-50 p-3 text-sm"
+                  >
+                    <p className="break-words font-semibold text-stone-900">
+                      {String(o.title ?? "?")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                      <span className="font-medium text-stone-600">
+                        {String(o.leadType === "CORROBORATED" ? "Corroborated" : "Search lead")}
+                      </span>
+                      {typeof o.provider === "string" && o.provider
+                        ? ` · ${o.provider}`
+                        : ""}
+                    </p>
+                    {typeof o.url === "string" && o.url ? (
+                      <ExternalLink
+                        href={o.url}
+                        className="mt-1.5 inline-flex min-h-[36px] items-center rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-[13px] font-medium text-teal-800 shadow-sm hover:border-teal-700"
+                      >
+                        Continue to provider ↗
+                      </ExternalLink>
+                    ) : (
+                      <p className="mt-1 text-xs text-stone-500">
+                        Search lead — no direct page.
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          );
+        })}
+      </div>
+      <p className="text-xs text-stone-500">
         GhoomAI did not complete any booking — continue externally.
       </p>
-    </div>
+    </section>
   );
 }
 
@@ -137,29 +190,35 @@ function RecheckAdapter({ recheck }: { recheck: unknown }) {
   const summary = isRecord(recheck.summary) ? recheck.summary : null;
   const options = Array.isArray(recheck.options) ? recheck.options.filter(isRecord) : [];
   return (
-    <AdapterCard title={`Final check: ${statusLabel(recheck.verdict)}`}>
+    <AdapterCard eyebrow="Final pre-trip check" title={`Final check: ${statusLabel(recheck.verdict)}`}>
       {summary && (
         <p className="text-sm">
           {String(summary.verified ?? 0)} verified · {String(summary.needsAttention ?? 0)} needing
           attention · {String(summary.problem ?? 0)} problem · {String(summary.unverified ?? 0)} unverified
         </p>
       )}
-      {options.map((o, i) => (
-        <p key={String(o.optionId ?? i)} className="text-sm">
-          <span className="font-medium">{String(o.title ?? "?")}</span>
-          {" — "}{statusLabel(o.status)}
-        </p>
-      ))}
-      <p className="text-xs text-neutral-500">Freshly checked — not a booking.</p>
+      {options.length > 0 && (
+        <ul className="space-y-1">
+          {options.map((o, i) => (
+            <li key={String(o.optionId ?? i)} className="text-sm">
+              <span className="font-medium">{String(o.title ?? "?")}</span>
+              {" — "}{statusLabel(o.status)}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-stone-500">Freshly checked — not a booking.</p>
     </AdapterCard>
   );
 }
 
-function CountsAdapter({ title, lines }: { title: string; lines: string[] }) {
+function CountsAdapter({ title, lines, eyebrow }: { title: string; lines: string[]; eyebrow: string }) {
   return (
-    <AdapterCard title={title}>
+    <AdapterCard eyebrow={eyebrow} title={title}>
       {lines.map((line) => (
-        <p key={line} className="text-sm">{line}</p>
+        <p key={line} className="break-words text-sm">
+          {line}
+        </p>
       ))}
     </AdapterCard>
   );
@@ -171,7 +230,10 @@ function AnalysisAdapter({ analysis }: { analysis: unknown }) {
     ? analysis.candidates.filter(isRecord)
     : [];
   return (
-    <AdapterCard title={`Visual identification: ${statusLabel(analysis.status)}`}>
+    <AdapterCard
+      eyebrow="Visual identification"
+      title={`Visual identification: ${statusLabel(analysis.status)}`}
+    >
       {candidates.slice(0, 3).map((c, i) => (
         <p key={i} className="text-sm">
           <span className="font-medium">{String(c.name ?? "?")}</span>
@@ -180,9 +242,9 @@ function AnalysisAdapter({ analysis }: { analysis: unknown }) {
         </p>
       ))}
       {candidates.length === 0 && (
-        <p className="text-sm text-neutral-600">No candidates identified.</p>
+        <p className="text-sm text-stone-600">No candidates identified.</p>
       )}
-      <p className="text-xs text-neutral-500">Approximate — verify before planning around it.</p>
+      <p className="text-xs text-stone-500">Approximate — verify before planning around it.</p>
     </AdapterCard>
   );
 }
@@ -193,10 +255,14 @@ function SituationsAdapter({ liveCheck }: { liveCheck: unknown }) {
     ? liveCheck.situations.filter(isRecord)
     : [];
   if (situations.length === 0) {
-    return <p className="text-sm text-neutral-600">No disruptions detected.</p>;
+    return (
+      <AgentCard>
+        <p className="text-sm text-stone-600">No disruptions detected.</p>
+      </AgentCard>
+    );
   }
   return (
-    <AdapterCard title={`Live situations (${situations.length})`}>
+    <AdapterCard eyebrow="Live situations" title={`Live situations (${situations.length})`}>
       {situations.slice(0, 5).map((s, i) => (
         <p key={String(s.id ?? i)} className="text-sm">
           <span className="font-medium">{statusLabel(s.type)}</span>
@@ -246,10 +312,10 @@ export default function AgentResultView({ turn }: { turn: AgentTurnView }) {
   if (turn.intent === "booking_select" && isRecord(data.selection)) {
     const s = data.selection;
     return (
-      <AdapterCard title="Selected for external handoff">
-        <p className="text-sm font-medium">{String(s.title ?? "?")}</p>
-        <p className="text-xs text-neutral-500">{String(s.provider ?? "")}</p>
-        <p className="text-xs text-neutral-500">GhoomAI did not book anything.</p>
+      <AdapterCard eyebrow="Booking handoff" title="Selected for external handoff">
+        <p className="break-words text-sm font-medium">{String(s.title ?? "?")}</p>
+        <p className="text-xs text-stone-500">{String(s.provider ?? "")}</p>
+        <p className="text-xs text-stone-500">GhoomAI did not book anything.</p>
       </AdapterCard>
     );
   }
@@ -263,6 +329,7 @@ export default function AgentResultView({ turn }: { turn: AgentTurnView }) {
     const plan = isRecord(t.plan) ? t.plan : null;
     return (
       <CountsAdapter
+        eyebrow="Trip activation"
         title="Trip active"
         lines={[
           plan && typeof plan.destination === "string"
@@ -290,7 +357,7 @@ export default function AgentResultView({ turn }: { turn: AgentTurnView }) {
       lines.push(`Current day: ${data.currentDayNumber}`);
     }
     if (lines.length === 0) return null;
-    return <CountsAdapter title="Trip overview" lines={lines} />;
+    return <CountsAdapter eyebrow="Live trip" title="Trip overview" lines={lines} />;
   }
 
   if (turn.intent === "reschedule_advice") {

@@ -58,10 +58,10 @@ const STATUS_LABEL: Record<LiveTripProgressItem["status"], string> = {
 };
 
 const STATUS_STYLE: Record<LiveTripProgressItem["status"], string> = {
-  UPCOMING: "bg-sky-100 text-sky-900",
+  UPCOMING: "bg-teal-100 text-teal-900",
   IN_PROGRESS: "bg-amber-100 text-amber-900",
   COMPLETED: "bg-emerald-100 text-emerald-900",
-  SKIPPED: "bg-neutral-100 text-neutral-500",
+  SKIPPED: "bg-stone-100 text-stone-500",
 };
 
 const KIND_LABEL: Record<string, string> = {
@@ -181,10 +181,10 @@ export default function LiveTripView({
         <p className="text-sm font-medium uppercase tracking-widest text-emerald-700">
           Live Trip
         </p>
-        <h3 className="mt-1 text-2xl font-bold text-neutral-900">
+        <h3 className="mt-1 text-2xl font-bold text-stone-900">
           {trip.plan.destination} · Day {trip.currentDayNumber} of {totalDays}
         </h3>
-        <p className="mt-1 text-sm text-neutral-600">
+        <p className="mt-1 text-sm text-stone-600">
           Completed: {counts.completed} / {counts.total}
           {" · "}Skipped: {counts.skipped}
           {" · "}Remaining: {counts.remaining}
@@ -201,11 +201,11 @@ export default function LiveTripView({
           type="button"
           disabled={viewedDay <= 1}
           onClick={() => setViewedDay((d) => Math.max(1, d - 1))}
-          className="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
+          className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
         >
           ← Prev day
         </button>
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-stone-600">
           Viewing Day {viewedDay}
           {viewedDay !== trip.currentDayNumber &&
             ` (trip is on Day ${trip.currentDayNumber})`}
@@ -214,7 +214,7 @@ export default function LiveTripView({
           type="button"
           disabled={viewedDay >= totalDays}
           onClick={() => setViewedDay((d) => Math.min(totalDays, d + 1))}
-          className="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
+          className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
         >
           Next day →
         </button>
@@ -231,7 +231,7 @@ export default function LiveTripView({
 
       <ol className="space-y-3">
         {(!viewed || viewed.items.length === 0) && (
-          <li className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+          <li className="rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-600 shadow-sm">
             No activities scheduled for this day.
           </li>
         )}
@@ -242,7 +242,7 @@ export default function LiveTripView({
           return (
             <li
               key={item.id}
-              className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm"
+              className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -250,20 +250,20 @@ export default function LiveTripView({
                 >
                   {STATUS_LABEL[status]}
                 </span>
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-stone-500">
                   {KIND_LABEL[item.kind] ?? item.kind}
                 </span>
                 {(item.startTime || item.endTime) && (
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-stone-500">
                     {formatTime(item.startTime)}
                     {item.startTime && item.endTime ? "–" : ""}
                     {formatTime(item.endTime)}
                   </span>
                 )}
               </div>
-              <p className="mt-1 font-medium text-neutral-900">{item.title}</p>
+              <p className="mt-1 font-medium text-stone-900">{item.title}</p>
               {item.place?.address && (
-                <p className="text-sm text-neutral-600">{item.place.address}</p>
+                <p className="text-sm text-stone-600">{item.place.address}</p>
               )}
               {typeof item.place?.rating === "number" && (
                 <p className="text-sm text-amber-700">
@@ -275,7 +275,7 @@ export default function LiveTripView({
                   type="button"
                   disabled={busy}
                   onClick={() => changeStatus(item.id, "IN_PROGRESS")}
-                  className="mt-2 w-full rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50 sm:w-auto"
+                  className="mt-2 w-full rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50 sm:w-auto"
                 >
                   {pendingKey === itemKey("IN_PROGRESS") ? "Starting…" : "Start"}
                 </button>
@@ -294,7 +294,7 @@ export default function LiveTripView({
                     type="button"
                     disabled={busy}
                     onClick={() => changeStatus(item.id, "SKIPPED")}
-                    className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:border-neutral-500 disabled:opacity-50"
+                    className="rounded-lg border border-stone-300 px-4 py-2.5 text-sm font-medium text-stone-700 hover:border-stone-500 disabled:opacity-50"
                   >
                     {pendingKey === itemKey("SKIPPED") ? "Saving…" : "Skip"}
                   </button>
@@ -305,7 +305,7 @@ export default function LiveTripView({
                   type="button"
                   disabled={busy}
                   onClick={() => changeStatus(item.id, "SKIPPED")}
-                  className="mt-2 w-full rounded-lg px-4 py-1.5 text-xs text-neutral-500 hover:bg-neutral-100 disabled:opacity-50 sm:w-auto"
+                  className="mt-2 w-full rounded-lg px-4 py-1.5 text-xs text-stone-500 hover:bg-stone-100 disabled:opacity-50 sm:w-auto"
                 >
                   Skip
                 </button>
@@ -321,7 +321,7 @@ export default function LiveTripView({
             type="button"
             disabled={pendingKey !== null || viewedDay === trip.currentDayNumber}
             onClick={() => changeDay(viewedDay)}
-            className="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
+            className="rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
           >
             {pendingKey === `day:${viewedDay}` ? "Moving…" : `Set current day to Day ${viewedDay}`}
           </button>
@@ -329,7 +329,7 @@ export default function LiveTripView({
             type="button"
             disabled={pendingKey !== null || !canComplete}
             onClick={completeTrip}
-            className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+            className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
             title={
               canComplete
                 ? "Finish the trip"
@@ -341,7 +341,7 @@ export default function LiveTripView({
         </div>
       )}
       {isActive && !canComplete && (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-stone-500">
           Complete or skip every activity to finish the trip.
         </p>
       )}
