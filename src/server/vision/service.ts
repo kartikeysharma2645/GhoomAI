@@ -11,16 +11,32 @@ export type { VisionAnalysisResult, VisionCandidate };
 import { validateImageInput } from "./validation";
 import { getVisionProvider, registerVisionProvider } from "./providers";
 import { openaiVisionProvider } from "./openaiProvider";
+import {
+  googleCloudVisionProvider,
+  isGoogleCloudVisionEnabled,
+} from "./googleCloudProvider";
 
-// The OpenAI adapter registers only when its credentials are actually
-// present. With no vision key configured, the registry stays empty and
-// vision calls fail with an explicit VisionNotConfiguredError — never a
-// fabricated result. Tests may register fakes explicitly.
+// Provider registration is deterministic and credential-gated:
+// - `VISION_PROVIDER=openai` registers OpenAI only (when its key is set).
+// - `VISION_PROVIDER=google` registers Google Cloud Vision only.
+// - Unset selects automatically: OpenAI when its key is present, plus
+//   Google Cloud Vision when explicitly enabled (currently the only way to
+//   detect intent to use ADC credentials without making a live call).
+// Registration order puts Google last so it wins ties — landmark
+// identification is this feature's purpose. With nothing configured the
+// registry stays empty and vision calls fail with an explicit
+// VisionNotConfiguredError — never a fabricated result. Tests may register
+// fakes explicitly.
+const visionPreference = (process.env.VISION_PROVIDER ?? "").trim().toLowerCase();
 if (
+  (visionPreference === "" || visionPreference === "openai") &&
   typeof process.env.OPENAI_API_KEY === "string" &&
   process.env.OPENAI_API_KEY.trim().length > 0
 ) {
   registerVisionProvider(openaiVisionProvider);
+}
+if (isGoogleCloudVisionEnabled()) {
+  registerVisionProvider(googleCloudVisionProvider);
 }
 
 /**
