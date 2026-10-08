@@ -1,3 +1,19 @@
+## 🚀 Live Demo
+
+🌐 **Try GhoomAI:** https://ghoomai.netlify.app
+
+> No installation required. Open the link and start planning your trip.
+
+### Quick Demo
+
+Try asking:
+
+- "Find interesting places in Jaipur"
+- "Plan a 4-day trip to Jaipur for 2 adults and 1 teenager"
+- "Find hotels in Jaipur"
+- "Check this itinerary against live information"
+
+
 # GhoomAI
 ## Plan it. Check it. Experience it.
 
