@@ -13,6 +13,7 @@ Try asking:
 - "Find hotels in Jaipur"
 - "Check this itinerary against live information"
 
+---
 
 # GhoomAI
 ## Plan it. Check it. Experience it.
