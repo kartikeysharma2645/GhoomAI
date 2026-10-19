@@ -404,11 +404,21 @@ function summarizePlan(plan: TripPlan): string {
 
   if (plan.totals.liveTotal?.amount !== undefined) {
     parts.push(
-      `Total: ${plan.totals.liveTotal.amount} ${plan.totals.liveTotal.currency} (live prices).`
+      `The above accommodation cost is ${plan.totals.liveTotal.amount} ${plan.totals.liveTotal.currency} (${plan.totals.liveTotal.basis} price, stay only).`
+    );
+    parts.push(
+      "Taxes and fees may or may not be reflected in the accommodation price; meals, attraction entry fees, and transport are not included. The complete trip cost is unknown."
     );
   } else if (plan.totals.estimatedTotal?.amount !== undefined) {
     parts.push(
-      `Total: ${plan.totals.estimatedTotal.amount} ${plan.totals.estimatedTotal.currency} (prices not verified).`
+      `The above accommodation cost is ${plan.totals.estimatedTotal.amount} ${plan.totals.estimatedTotal.currency} (estimated, stay only).`
+    );
+    parts.push(
+      "Taxes and fees may or may not be reflected in the accommodation price; meals, attraction entry fees, and transport are not included. The complete trip cost is unknown."
+    );
+  } else {
+    parts.push(
+      "Accommodation pricing is not available; the complete trip cost is unknown."
     );
   }
 
@@ -417,6 +427,11 @@ function summarizePlan(plan: TripPlan): string {
     parts.push(
       `Budget: ${plan.budget.amount} ${plan.budget.currency}${verdict}.`
     );
+    if (plan.budgetVerdict === "unknown") {
+      parts.push(
+        "The verdict reflects verified accommodation pricing only; other trip costs could not be priced."
+      );
+    }
   }
 
   parts.push("Run RealityCheck to verify before approving, or find booking options.");

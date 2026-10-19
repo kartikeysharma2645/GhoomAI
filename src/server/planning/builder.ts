@@ -131,6 +131,19 @@ interface StayPick {
   warnings: string[];
 }
 
+/** Resolves the full-stay price from a hotel, preferring the provider's
+ * full-stay total (which may include taxes/fees) and falling back to the
+ * per-night rate multiplied by the number of nights. */
+function stayPrice(hotel: NormalizedHotel, nights: number): number | undefined {
+  if (typeof hotel.totalLowestExtracted === "number") {
+    return hotel.totalLowestExtracted;
+  }
+  if (typeof hotel.nightlyLowestExtracted === "number") {
+    return hotel.nightlyLowestExtracted * nights;
+  }
+  return undefined;
+}
+
 /** Picks one anchor stay: best-rated affordable-with-price option first. */
 export function pickStay(
   hotels: NormalizedHotel[],
@@ -142,12 +155,10 @@ export function pickStay(
   if (named.length === 0 || nights <= 0) return undefined;
   const warnings: string[] = [];
 
-  const priced = named.filter(
-    (h) => typeof h.nightlyLowestExtracted === "number",
-  );
+  const priced = named.filter((h) => stayPrice(h, nights) !== undefined);
   const affordable =
     budgetAmount !== undefined
-      ? priced.filter((h) => (h.nightlyLowestExtracted as number) * nights <= budgetAmount)
+      ? priced.filter((h) => stayPrice(h, nights) as number <= budgetAmount)
       : priced;
 
   const byRating = (a: NormalizedHotel, b: NormalizedHotel) =>
@@ -167,15 +178,16 @@ export function pickStay(
   } else {
     chosen = [...named].sort(byRating)[0];
     warnings.push(
-      "No live nightly price was available for the selected stay.",
+      "No live price was available for the selected stay.",
     );
   }
 
   let total: CostLine | undefined;
-  if (typeof chosen.nightlyLowestExtracted === "number") {
+  const amount = stayPrice(chosen, nights);
+  if (typeof amount === "number") {
     total = {
       label: `Stay: ${chosen.name} × ${nights} night${nights === 1 ? "" : "s"}`,
-      amount: (chosen.nightlyLowestExtracted as number) * nights,
+      amount,
       currency,
       basis: "live",
     };
@@ -477,13 +489,16 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
     totals.liveTotal = { ...stayTotal };
   }
   let budgetVerdict: TripPlan["budgetVerdict"] = "unknown";
-  if (requirements.budget) {
-    if (pricesVerified && totals.liveTotal?.amount !== undefined) {
-      budgetVerdict =
-        totals.liveTotal.amount <= requirements.budget.amount
-          ? "within"
-          : "exceeds_live_costs";
+  if (requirements.budget && pricesVerified && totals.liveTotal?.amount !== undefined) {
+    // Only accommodation is priced; attraction, meal, and transport costs
+    // are never included in the plan totals. A verdict of "within" would
+    // wrongly imply the complete trip fits the budget.
+    if (totals.liveTotal.amount > requirements.budget.amount) {
+      // Accommodation alone exceeds the trip budget → definitely exceeds.
+      budgetVerdict = "exceeds_live_costs";
     }
+    // Otherwise: accommodation is within budget but material trip expenses
+    // remain unpriced → "unknown" (cannot confirm complete trip fits budget).
   }
   if (!stayWindow.verified) {
     warnings.push(

@@ -697,6 +697,78 @@ describe("orchestrator dispatch", () => {
     expect(fake.search).not.toHaveBeenCalled();
   });
 
+  // ---- Regression: summarizePlan discloses accommodation-only pricing ----
+
+  it("summarizePlan labels accommodation as stay-only and discloses unpriced categories", async () => {
+    const planWithStay: unknown = {
+      ...planFixture(),
+      stay: {
+        hotelName: "Hotel Keptown",
+        nights: 2,
+        total: {
+          label: "Stay: Hotel Keptown × 2 nights",
+          amount: 3676,
+          currency: "INR",
+          basis: "live",
+        },
+        evidence: {
+          engine: "google_hotels",
+          observedAt: "2026-10-04T00:00:00.000Z",
+          propertyToken: "tok1",
+          query: "hotels in Jaipur",
+          purpose: "stay_selection",
+          currency: "INR",
+          facts: { nightlyExtracted: 1838, totalExtracted: 3676 },
+        },
+      },
+      totals: {
+        lines: [
+          {
+            label: "Stay: Hotel Keptown × 2 nights",
+            amount: 3676,
+            currency: "INR",
+            basis: "live",
+          },
+        ],
+        liveTotal: {
+          label: "Stay: Hotel Keptown × 2 nights",
+          amount: 3676,
+          currency: "INR",
+          basis: "live",
+        },
+        currency: "INR",
+      },
+      budget: { amount: 15000, currency: "INR" },
+      budgetVerdict: "unknown",
+      pricesVerified: true,
+    } as unknown as TripPlan;
+
+    const session: ConversationSession = conversationSessionSchema.parse({
+      sessionVersion: 1,
+      transcript: [],
+      activePlan: planWithStay,
+      tripStatus: "PLANNED",
+    });
+
+    const fake = fakeGateway();
+    const res = await turn(session, "Show me the itinerary.", undefined, {
+      client: asClient(fake),
+    });
+    expect(res.outcome).toBe("completed");
+    expect(res.message).toMatch(/3-day trip to Jaipur/i);
+    // Should identify as accommodation cost, stay only.
+    expect(res.message).toMatch(/accommodation cost is 3676 INR \(live price, stay only\)/i);
+    // Should disclose unpriced categories.
+    expect(res.message).toMatch(/meals.*attraction entry fees.*transport are not included/i);
+    expect(res.message).toMatch(/complete trip cost is unknown/i);
+    // Budget verdict qualified.
+    expect(res.message).toMatch(/Budget: 15000 INR — verdict: unknown/i);
+    expect(res.message).toMatch(/verdict reflects verified accommodation pricing only/i);
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
   it("still runs an explicit hotel-search request when a plan exists", async () => {
     const hotels = fakeGateway({
       hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],

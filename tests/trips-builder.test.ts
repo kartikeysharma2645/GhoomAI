@@ -174,15 +174,19 @@ describe("builder evidence and budget", () => {
     expect(plan.stay?.evidence.facts.nightlyExtracted).toBe(5000);
   });
 
-  it("computes live totals and a within verdict", () => {
+  it("prefers full-stay total over nightly rate × nights", () => {
     const plan = buildTripPlan(
       input({
         requirements: requirements({ budget: { amount: 25000, currency: "INR" } }),
       }),
     );
-    expect(plan.totals.liveTotal?.amount).toBe(10000);
+    // Fixture hotel has totalLowestExtracted = 15000 (nightly 5000 × 3);
+    // the builder prefers the provider's full-stay total.
+    expect(plan.totals.liveTotal?.amount).toBe(15000);
     expect(plan.totals.liveTotal?.basis).toBe("live");
-    expect(plan.budgetVerdict).toBe("within");
+    // Accommodation (₹15000) is within budget (₹25000) but meals, attraction
+    // fees, and transport are unpriced → verdict is "unknown", not "within".
+    expect(plan.budgetVerdict).toBe("unknown");
   });
 
   it("reports exceeds_live_costs over budget", () => {
@@ -207,6 +211,49 @@ describe("builder evidence and budget", () => {
     expect(plan.totals.liveTotal).toBeUndefined();
     expect(plan.budgetVerdict).toBe("unknown");
     expect(plan.stay?.total).toBeUndefined();
+  });
+
+  it("falls back to nightly rate × nights when full-stay total is unavailable", () => {
+    const plan = buildTripPlan(
+      input({
+        hotels: [
+          {
+            position: 1,
+            name: "Nightly-Only Inn",
+            overallRating: 4.2,
+            reviews: 300,
+            nightlyLowest: "₹4000",
+            nightlyLowestExtracted: 4000,
+          },
+        ],
+        requirements: requirements({ budget: { amount: 25000, currency: "INR" } }),
+      }),
+    );
+    // No totalLowestExtracted → builder falls back to nightly × nights = 4000 × 2 nights (Nov 10→12) = 8000.
+    expect(plan.totals.liveTotal?.amount).toBe(8000);
+    expect(plan.totals.liveTotal?.basis).toBe("live");
+    expect(plan.budgetVerdict).toBe("unknown");
+  });
+
+  it("uses nightly-only pricing when full-stay total is unavailable and exceeds budget", () => {
+    const plan = buildTripPlan(
+      input({
+        hotels: [
+          {
+            position: 1,
+            name: "Pricey Inn",
+            overallRating: 4.0,
+            reviews: 200,
+            nightlyLowest: "₹9000",
+            nightlyLowestExtracted: 9000,
+          },
+        ],
+        requirements: requirements({ budget: { amount: 10000, currency: "INR" } }),
+      }),
+    );
+    // nightly × nights = 9000 × 2 nights (Nov 10→12) = 18000, which exceeds budget 10000 → exceeds_live_costs.
+    expect(plan.totals.liveTotal?.amount).toBe(18000);
+    expect(plan.budgetVerdict).toBe("exceeds_live_costs");
   });
 
   it("marks prices unverified in flexible mode", () => {
