@@ -591,6 +591,112 @@ describe("orchestrator dispatch", () => {
     expect(fake.search).not.toHaveBeenCalled();
   });
 
+  // ---- Regression: plan view returns structured itinerary details ----
+
+  it("returns the existing structured plan when asked to show the itinerary", async () => {
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const res = await turn(sessionWithPlan("PLANNED"), "Show me the itinerary.", undefined, {
+      client: asClient(fake),
+    });
+    expect(res.outcome).toBe("completed");
+    expect(res.capability).toBe("tripSummary");
+    // The structured plan is embedded in data.plan.
+    expect(res.data).toBeDefined();
+    expect((res.data as { plan?: unknown }).plan).toBeDefined();
+    const plan = (res.data as { plan?: unknown }).plan as {
+      destination?: string;
+      durationDays?: number;
+      days?: Array<{ dayNumber?: number; items?: Array<{ title?: string }> }>;
+      stay?: { hotelName?: string; nights?: number };
+      totals?: { liveTotal?: { amount?: number; currency?: string } };
+      budget?: { amount?: number; currency?: string };
+      budgetVerdict?: string;
+    };
+    expect(plan.destination).toBe("Jaipur");
+    expect(plan.durationDays).toBe(3);
+    // No search is triggered just to display the existing plan.
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
+  it("message contains day-wise activities and accommodation/cost details", async () => {
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const res = await turn(sessionWithPlan("PLANNED"), "Show me the itinerary.", undefined, {
+      client: asClient(fake),
+    });
+    expect(res.outcome).toBe("completed");
+    expect(typeof res.message).toBe("string");
+    expect(res.message.length).toBeGreaterThan(0);
+    // The message should mention the destination and duration.
+    expect(res.message).toMatch(/3-day trip to Jaipur/i);
+    // Day-wise activities should be listed.
+    expect(res.message).toMatch(/Day 1:/i);
+    expect(res.message).toMatch(/Synthetic Fort/i);
+    // Closing guidance is preserved.
+    expect(res.message).toMatch(/Run RealityCheck/i);
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
+  it("omits missing optional fields without fabricating values", async () => {
+    const minimalPlan: unknown = {
+      destination: "Goa",
+      dateMode: "flexible",
+      durationDays: 2,
+      party: { adults: 1, children: 0 },
+      budgetVerdict: "unknown",
+      assumptions: [],
+      warnings: [],
+      days: [
+        {
+          dayNumber: 1,
+          items: [
+            {
+              id: "d1-a1",
+              kind: "attraction",
+              title: "Beach",
+              evidence: [],
+            },
+          ],
+          dayCost: { lines: [], currency: "INR" },
+        },
+      ],
+      totals: { lines: [], currency: "INR" },
+      pricesVerified: false,
+    } as unknown as TripPlan;
+
+    const session: ConversationSession = conversationSessionSchema.parse({
+      sessionVersion: 1,
+      transcript: [],
+      activePlan: minimalPlan,
+      tripStatus: "PLANNED",
+    });
+
+    const fake = fakeGateway();
+    const res = await turn(session, "Show me the itinerary.", undefined, {
+      client: asClient(fake),
+    });
+    expect(res.outcome).toBe("completed");
+    expect(res.message).toMatch(/2-day trip to Goa/i);
+    expect(res.message).toMatch(/Day 1:/i);
+    expect(res.message).toMatch(/Beach/i);
+    // No stay, no budget, no totals — nothing fabricated.
+    expect(res.message).not.toMatch(/Stay:/i);
+    expect(res.message).not.toMatch(/Budget:/i);
+    expect(res.message).not.toMatch(/Total:/i);
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
   it("still runs an explicit hotel-search request when a plan exists", async () => {
     const hotels = fakeGateway({
       hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],

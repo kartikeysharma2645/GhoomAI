@@ -349,6 +349,80 @@ function resolvePlanInspection(message: string): "view" | "modify" | undefined {
   return undefined;
 }
 
+/**
+ * Builds a concise, factual textual summary of an existing trip plan using
+ * only stored fields. Never invents prices, activities, opening hours, or
+ * travel times; missing fields are simply omitted. Distinguishes live
+ * prices from estimates when the stored cost basis supports it.
+ */
+function summarizePlan(plan: TripPlan): string {
+  const parts: string[] = [];
+
+  parts.push(
+    `Here is your current ${plan.durationDays}-day trip to ${plan.destination}.`
+  );
+
+  if (plan.startDate && plan.endDate) {
+    parts.push(`Dates: ${plan.startDate} → ${plan.endDate}.`);
+  }
+
+  if (plan.stay) {
+    const stayBits = [
+      `Stay: ${plan.stay.hotelName} (${plan.stay.nights} night${plan.stay.nights === 1 ? "" : "s"})`,
+    ];
+    if (plan.stay.total?.amount !== undefined) {
+      stayBits.push(
+        `total ${plan.stay.total.amount} ${plan.stay.total.currency} (${plan.stay.total.basis} price)`
+      );
+    } else if (plan.stay.nightlyLowest) {
+      stayBits.push(
+        `nightly from ${plan.stay.nightlyLowest} ${
+          plan.stay.total?.currency ?? plan.totals.currency
+        }`
+      );
+    }
+    parts.push(stayBits.join("; ") + ".");
+  }
+
+  for (const day of plan.days) {
+    const activities = day.items
+      .filter((i) => i.kind === "attraction")
+      .map((i) => {
+        const time = i.startTime && i.endTime ? ` ${i.startTime}–${i.endTime}` : "";
+        return `- ${i.title}${time}`;
+      });
+    if (activities.length > 0) {
+      parts.push(`Day ${day.dayNumber}: ${activities.join("; ")}`);
+    }
+    const meals = day.items
+      .filter((i) => i.kind === "meal")
+      .map((i) => i.title);
+    if (meals.length > 0) {
+      parts.push(`Day ${day.dayNumber} meals: ${meals.join("; ")}`);
+    }
+  }
+
+  if (plan.totals.liveTotal?.amount !== undefined) {
+    parts.push(
+      `Total: ${plan.totals.liveTotal.amount} ${plan.totals.liveTotal.currency} (live prices).`
+    );
+  } else if (plan.totals.estimatedTotal?.amount !== undefined) {
+    parts.push(
+      `Total: ${plan.totals.estimatedTotal.amount} ${plan.totals.estimatedTotal.currency} (prices not verified).`
+    );
+  }
+
+  if (plan.budget) {
+    const verdict = plan.budgetVerdict ? ` — verdict: ${plan.budgetVerdict}` : "";
+    parts.push(
+      `Budget: ${plan.budget.amount} ${plan.budget.currency}${verdict}.`
+    );
+  }
+
+  parts.push("Run RealityCheck to verify before approving, or find booking options.");
+  return parts.join(" ");
+}
+
 function failedTurn(
   intent: AgentTurnResponse["intent"],
   capability: string,
@@ -743,9 +817,7 @@ export async function orchestrateTurn(
           intent: "trip_status",
           outcome: "completed",
           capability: "tripSummary",
-          message:
-            `Here is your current ${working.activePlan.durationDays}-day trip to ${working.activePlan.destination}. ` +
-            `Run RealityCheck to verify it before approving, or find booking options.`,
+          message: summarizePlan(working.activePlan),
           data: { plan: working.activePlan },
           followUps: ["Run RealityCheck", "Find booking options"],
         },
