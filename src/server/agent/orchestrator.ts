@@ -19,6 +19,7 @@ import { checkTrip } from "../realitycheck/service";
 import { SerpApiClient } from "../services/serpapi/client";
 import { planTrip } from "../trips/service";
 import type { TripPlanRequest } from "../trips/requirements";
+import type { TripPlan } from "../trips/plan";
 import { discoverBookingOptions } from "../booking/discovery";
 import {
   appendTranscriptEntry,
@@ -271,6 +272,81 @@ export function extractPlanRequest(message: string): TripPlanRequest {
     request.flexibleDates = true;
   }
   return request;
+}
+
+/**
+ * Builds a TripPlanRequest for regenerating an existing plan with
+ * modifications. Fields come from the stored plan; only fields stated in
+ * the follow-up message are overwritten. Destination and dates are always
+ * preserved from the active plan — a modification changes the plan's pace,
+ * budget, or duration, not its destination or timing.
+ */
+function buildModificationRequest(
+  plan: TripPlan,
+  fresh: TripPlanRequest,
+): TripPlanRequest {
+  const request: TripPlanRequest = {
+    destination: plan.destination,
+    ...(plan.startDate ? { startDate: plan.startDate } : {}),
+    ...(plan.endDate ? { endDate: plan.endDate } : {}),
+    durationDays: plan.durationDays,
+    adults: plan.party.adults,
+    children: plan.party.children,
+    pace: "balanced",
+  };
+  if (plan.budget) request.budget = plan.budget;
+  if (fresh.pace) request.pace = fresh.pace;
+  if (fresh.budget) request.budget = fresh.budget;
+  if (fresh.durationDays) request.durationDays = fresh.durationDays;
+  if (fresh.adults) request.adults = fresh.adults;
+  if (fresh.children) request.children = fresh.children;
+  if (fresh.interests && fresh.interests.length > 0) {
+    request.interests = fresh.interests;
+  }
+  return request;
+}
+
+/**
+ * Patterns that indicate the user wants to view or summarize an existing
+ * active trip plan. Kept narrow so genuine searches ("Tell me about Jaipur
+ * weather") are not mistaken for plan inspection.
+ */
+const PLAN_VIEW_PATTERNS = [
+  /\bshow\b.{0,50}\b(itinerar|plan)\w*\b/i,
+  /\bview\b.{0,50}\b(itinerar|plan)\w*\b/i,
+  /\bsummarize\b.{0,50}\b(trip|itinerar|plan)\w*\b/i,
+  /\bmy\s+current\s+(trip\s+)?(itinerar|plan)\w*\b/i,
+  /\b(create|build|make)\b.{0,50}\b(complete\s+)?itinerar\w*\b/i,
+];
+
+/**
+ * Patterns that indicate the user wants to modify an existing active trip
+ * plan. These are not executed automatically — they lead to a targeted
+ * clarification asking what specifically to change.
+ */
+const PLAN_MODIFY_PATTERNS = [
+  /\badjust\b.{0,50}\b(plan|itinerar)\w*\b/i,
+  /\bmodify\b.{0,50}\b(plan|itinerar)\w*\b/i,
+  /\bchange\b.{0,50}\b(plan|itinerar)\w*\b/i,
+];
+
+/** Removal without replacement is not supported by the fixer pipeline. */
+const REMOVE_ITEM = /\b(remove|take out|drop)\b.{0,80}\b(activity|item|attraction|place|thing|one|it)\b/i;
+
+function matchesPlanPattern(message: string, patterns: RegExp[]): boolean {
+  const lower = message.toLowerCase();
+  return patterns.some((pattern) => pattern.test(lower));
+}
+
+/**
+ * When an active plan already exists, determines whether the user is asking
+ * to view/summarize or modify that plan. Returns undefined for messages
+ * that are not about the existing plan (e.g. a new search query).
+ */
+function resolvePlanInspection(message: string): "view" | "modify" | undefined {
+  if (matchesPlanPattern(message, PLAN_VIEW_PATTERNS)) return "view";
+  if (matchesPlanPattern(message, PLAN_MODIFY_PATTERNS)) return "modify";
+  return undefined;
 }
 
 function failedTurn(
@@ -605,8 +681,9 @@ export async function orchestrateTurn(
   // Clarification continuation: when a plan_trip turn previously ended in
   // needs_input, its partial requirements wait in pendingPlanRequest. If the
   // new message classifies as ambiguous (needs_clarification/out_of_scope)
-  // but states fresh planning fields, resume planning with the merged
-  // request instead of dropping context. Explicit capability intents always
+  // or as a plain general_search, but states fresh planning fields, resume
+  // planning with the merged request instead of dropping context. Explicit
+  // capability intents (find_hotels, discover_places, plan_trip, ...) always
   // take precedence, so unrelated requests are never hijacked.
   const draft = working.pendingPlanRequest;
   let effectiveIntent = routed.intent;
@@ -614,7 +691,8 @@ export async function orchestrateTurn(
   if (
     draft &&
     (routed.intent === "needs_clarification" ||
-      routed.intent === "out_of_scope")
+      routed.intent === "out_of_scope" ||
+      routed.intent === "general_search")
   ) {
     const fresh = extractPlanRequest(trimmed);
     if (Object.keys(fresh).length > 0) {
@@ -649,6 +727,161 @@ export async function orchestrateTurn(
       {},
       { capability: "none", status: "proposed" },
     );
+  }
+
+  // When an active plan already exists, handle requests to view, summarize,
+  // or modify that plan instead of falling through to a plain search. Explicit
+  // capability intents are matched by the router earlier and are never
+  // hijacked here. A message that is not about the existing plan falls
+  // through to the normal capability dispatch below.
+  if (working.activePlan) {
+    const planAction = resolvePlanInspection(trimmed);
+    if (planAction === "view") {
+      return finish(
+        {
+          ...base,
+          intent: "trip_status",
+          outcome: "completed",
+          capability: "tripSummary",
+          message:
+            `Here is your current ${working.activePlan.durationDays}-day trip to ${working.activePlan.destination}. ` +
+            `Run RealityCheck to verify it before approving, or find booking options.`,
+          data: { plan: working.activePlan },
+          followUps: ["Run RealityCheck", "Find booking options"],
+        },
+        {},
+        { capability: "tripSummary", status: "completed" },
+      );
+    }
+    // ---- Modification handling (Phase 3) ----
+    const fresh = extractPlanRequest(trimmed);
+    const hasPaceChange = hasPaceChangeLanguage(trimmed);
+    const hasReplacement = hasReplacementLanguage(trimmed);
+    const hasRemoval = REMOVE_ITEM.test(trimmed);
+    const hasBudgetOrDurationChange =
+      fresh.budget !== undefined || fresh.durationDays !== undefined;
+
+    if (
+      planAction === "modify" ||
+      hasPaceChange ||
+      hasReplacement ||
+      hasRemoval ||
+      hasBudgetOrDurationChange
+    ) {
+      // Removal without replacement is not supported by the fixer pipeline.
+      if (hasRemoval && !hasReplacement) {
+        return finish(
+          {
+            ...base,
+            intent: "needs_clarification",
+            outcome: "clarification",
+            capability: "none",
+            message:
+              "I can replace activities with verified alternatives, but I can't " +
+              "remove an activity without a replacement. Tell me which activity to " +
+              "replace and what kind of place you want instead, or run RealityCheck " +
+              "to find issues to fix.",
+            followUps: ["Run RealityCheck"],
+          },
+          {},
+          { capability: "none", status: "proposed" },
+        );
+      }
+
+      // Specific item replacement needs the fix_trip pipeline, which requires
+      // a prior RealityCheck to verify replacements against.
+      let routedToFixTrip = false;
+      if (hasReplacement && !hasPaceChange && !hasBudgetOrDurationChange) {
+        if (!working.latestCheck) {
+          return finish(
+            {
+              ...base,
+              intent: "needs_clarification",
+              outcome: "clarification",
+              capability: "none",
+              message:
+                "To replace specific activities, I need to verify your itinerary " +
+                "first. Run RealityCheck, then tell me which item to replace and " +
+                "what kind of place you want instead.",
+              followUps: ["Run RealityCheck"],
+            },
+            {},
+            { capability: "none", status: "proposed" },
+          );
+        }
+        effectiveIntent = "fix_trip";
+        routedToFixTrip = true;
+        // Fall through to the fix_trip case in the switch below.
+      } else if (hasPaceChange || hasBudgetOrDurationChange) {
+        // Rebuild the plan via planTrip with the requested modifications.
+        const request = buildModificationRequest(working.activePlan, fresh);
+        let result: { status: "ready"; plan: TripPlan } | { status: "needs_input"; missing: string[]; message: string };
+        try {
+          result = await planTrip(request, client, now);
+        } catch (err) {
+          const failed = failedTurn("plan_trip", "planTrip", err);
+          return {
+            ...failed,
+            session: withAssistantEntry(working, failed.message, { capability: "none", status: "failed" }, now),
+          };
+        }
+        if (result.status === "needs_input") {
+          return finish(
+            {
+              ...base,
+              intent: "plan_trip",
+              outcome: "clarification",
+              capability: "planTrip",
+              message: result.message,
+              data: { missing: result.missing },
+              followUps: [],
+            },
+            { pendingPlanRequest: request },
+            { capability: "planTrip", status: "proposed" },
+          );
+        }
+        return finish(
+          {
+            ...base,
+            intent: "plan_trip",
+            outcome: "completed",
+            capability: "planTrip",
+            message:
+              `Updated your ${result.plan.durationDays}-day trip to ${result.plan.destination}. ` +
+              `Run RealityCheck to verify the changes before approving.`,
+            data: { plan: result.plan },
+            followUps: ["Run RealityCheck", "Find booking options"],
+          },
+          {
+            activePlan: result.plan,
+            tripStatus: "PLANNED",
+            latestCheck: undefined,
+            pendingPlanRequest: undefined,
+          },
+          { capability: "planTrip", status: "completed" },
+        );
+      }
+      // planAction === "modify" without a specific change: ask what to adjust.
+      // Skipped when we already routed to fix_trip above.
+      if (!routedToFixTrip && planAction === "modify") {
+        return finish(
+          {
+            ...base,
+            intent: "needs_clarification",
+            outcome: "clarification",
+            capability: "none",
+            message:
+              "I can help adjust your itinerary. Tell me what you'd like to change — " +
+              "for example, which day or activity to adjust, or whether you want a " +
+              "more relaxed or packed pace. If you'd like verified replacement options, " +
+              "run a RealityCheck first.",
+            followUps: ["Run RealityCheck"],
+          },
+          {},
+          { capability: "none", status: "proposed" },
+        );
+      }
+    }
   }
 
   try {

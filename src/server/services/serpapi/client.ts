@@ -21,6 +21,12 @@ import {
 
 const SEARCH_PATH = "/search.json";
 const REQUEST_TIMEOUT_MS = 15_000;
+/** Maximum number of request attempts (1 initial + up to 2 retries). */
+const MAX_ATTEMPTS = 3;
+/** Starting backoff between retries, capped at MAX_BACKOFF_MS. */
+const INITIAL_BACKOFF_MS = 500;
+/** Upper bound on any single backoff delay, including Retry-After. */
+const MAX_BACKOFF_MS = 5000;
 /** City-level map zoom, sent when `location` is used without an explicit zoom. */
 const DEFAULT_MAPS_ZOOM = 13;
 
@@ -74,6 +80,48 @@ function sanitizeProviderMessage(message: string, apiKey: string): string {
 }
 
 /**
+ * Returns true only for transient failures that may succeed on retry:
+ * timeouts, connection failures, HTTP 429, and HTTP 5xx.
+ * Non-transient client errors (400, 401, 403, etc.) are never retried.
+ */
+function isRetryableError(err: unknown): boolean {
+  if (!(err instanceof UpstreamError)) return false;
+  if (err.message === "Search provider request timed out.") return true;
+  if (err.message === "Search provider is unreachable.") return true;
+  if (err.status === 429) return true;
+  if (err.status !== undefined && err.status >= 500 && err.status < 600) return true;
+  return false;
+}
+
+/**
+ * Parses a Retry-After header into a delay in milliseconds.
+ * Accepts a delay-seconds integer or an HTTP-date. Falls back to defaultMs.
+ * The result is always capped by the caller to MAX_BACKOFF_MS.
+ */
+function parseRetryAfter(headers: Headers, defaultMs: number): number {
+  const retryAfter = headers.get("Retry-After");
+  if (!retryAfter) return defaultMs;
+  const seconds = Number.parseInt(retryAfter, 10);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return seconds * 1000;
+  }
+  const date = new Date(retryAfter);
+  if (!Number.isNaN(date.getTime())) {
+    const delay = date.getTime() - Date.now();
+    return delay > 0 ? delay : 0;
+  }
+  return defaultMs;
+}
+
+/**
+ * Backs off for the given number of milliseconds without blocking the
+ * event loop. Used between retry attempts.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * Server-side gateway for SerpApi Search Engine APIs.
  *
  * Usage:
@@ -124,74 +172,114 @@ export class SerpApiClient {
   /**
    * Shared transport: executes the request, maps failures to safe errors,
    * and returns the parsed JSON payload. Never includes the URL/key in errors.
+   *
+   * Retries transient failures (timeouts, connection errors, HTTP 429,
+   * and HTTP 5xx) up to MAX_ATTEMPTS total with bounded exponential
+   * backoff. Non-transient client errors (400, 401, 403, etc.) are never
+   * retried. Retry-After headers are respected when present, capped at
+   * MAX_BACKOFF_MS.
    */
   private async requestJson(query: URLSearchParams): Promise<unknown> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    let res: Response;
-    try {
-      res = await fetch(`${SERPAPI_BASE_URL}${SEARCH_PATH}?${query.toString()}`, {
-        signal: controller.signal,
-      });
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        throw new UpstreamError("Search provider request timed out.");
-      }
-      throw new UpstreamError("Search provider is unreachable.");
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!res.ok) {
-      throw mapStatusToError(res.status, await this.readErrorDetails(res));
-    }
-
-    let json: unknown;
-    try {
-      json = await res.json();
-    } catch {
-      throw new UpstreamError(
-        "Search provider returned an unreadable response.",
-      );
-    }
-
-    // SerpApi reports engine-level failures (e.g. bad key, bad engine)
-    // via an "error" field. Map to a generic message — never forward raw payloads.
-    if (
-      typeof json === "object" &&
-      json !== null &&
-      "error" in json &&
-      typeof (json as { error: unknown }).error === "string"
-    ) {
-      const providerMessage = (
-        json as { error: string }
-      ).error.toLowerCase();
-      if (
-        providerMessage.includes("api key") ||
-        providerMessage.includes("invalid") ||
-        providerMessage.includes("unauthorized")
-      ) {
-        throw new UpstreamError(
-          "Search provider rejected the configured API key.",
-          undefined,
-          {
-            providerError: sanitizeProviderMessage(
-              (json as { error: string }).error,
-              this.apiKey,
-            ),
-          },
+      let res: Response;
+      try {
+        res = await fetch(`${SERPAPI_BASE_URL}${SEARCH_PATH}?${query.toString()}`, {
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          lastErr = new UpstreamError("Search provider request timed out.");
+        } else {
+          lastErr = new UpstreamError("Search provider is unreachable.");
+        }
+        if (!isRetryableError(lastErr) || attempt === MAX_ATTEMPTS - 1) {
+          throw lastErr;
+        }
+        const backoffMs = Math.min(
+          INITIAL_BACKOFF_MS * 2 ** attempt,
+          MAX_BACKOFF_MS,
         );
+        await sleep(backoffMs);
+        continue;
+      } finally {
+        clearTimeout(timeout);
       }
-      throw new UpstreamError("Search provider reported an error.", undefined, {
-        providerError: sanitizeProviderMessage(
-          (json as { error: string }).error,
-          this.apiKey,
-        ),
-      });
-    }
 
-    return json;
+      if (!res.ok) {
+        lastErr = mapStatusToError(
+          res.status,
+          await this.readErrorDetails(res),
+        );
+        if (!isRetryableError(lastErr) || attempt === MAX_ATTEMPTS - 1) {
+          throw lastErr;
+        }
+        const backoffMs = Math.min(
+          parseRetryAfter(res.headers, INITIAL_BACKOFF_MS * 2 ** attempt),
+          MAX_BACKOFF_MS,
+        );
+        await sleep(backoffMs);
+        continue;
+      }
+
+      let json: unknown;
+      try {
+        json = await res.json();
+      } catch {
+        lastErr = new UpstreamError(
+          "Search provider returned an unreadable response.",
+        );
+        if (!isRetryableError(lastErr) || attempt === MAX_ATTEMPTS - 1) {
+          throw lastErr;
+        }
+        const backoffMs = Math.min(
+          INITIAL_BACKOFF_MS * 2 ** attempt,
+          MAX_BACKOFF_MS,
+        );
+        await sleep(backoffMs);
+        continue;
+      }
+
+      // SerpApi reports engine-level failures (e.g. bad key, bad engine)
+      // via an "error" field. Map to a generic message — never forward raw payloads.
+      if (
+        typeof json === "object" &&
+        json !== null &&
+        "error" in json &&
+        typeof (json as { error: unknown }).error === "string"
+      ) {
+        const providerMessage = (
+          json as { error: string }
+        ).error.toLowerCase();
+        lastErr =
+          providerMessage.includes("api key") ||
+          providerMessage.includes("invalid") ||
+          providerMessage.includes("unauthorized")
+            ? new UpstreamError(
+                "Search provider rejected the configured API key.",
+                undefined,
+                {
+                  providerError: sanitizeProviderMessage(
+                    (json as { error: string }).error,
+                    this.apiKey,
+                  ),
+                },
+              )
+            : new UpstreamError("Search provider reported an error.", undefined, {
+                providerError: sanitizeProviderMessage(
+                  (json as { error: string }).error,
+                  this.apiKey,
+                ),
+              });
+        throw lastErr;
+      }
+
+      return json;
+    }
+    throw lastErr ?? new UpstreamError("Search provider request failed.");
   }
 
   async search(input: unknown): Promise<NormalizedSearchResponse> {

@@ -67,6 +67,28 @@ describe("POST /api/agent", () => {
     expect(json.data.session.transcript).toHaveLength(2);
   });
 
+  it("returns the deployed API response shape with ok, data.message, and data.session", async () => {
+    const session = createEmptySession();
+    const res = await POST(
+      post(
+        JSON.stringify({ session, message: "Plan a trip to Jaipur" }),
+      ),
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    // Top-level `ok` as expected by the Python Agentverse adapter.
+    expect(json.ok).toBe(true);
+    // `data.message` and `data.session` are present as required.
+    expect(typeof json.data.message).toBe("string");
+    expect(json.data.message.length).toBeGreaterThan(0);
+    expect(json.data.session).toBeDefined();
+    expect(Array.isArray(json.data.session.transcript)).toBe(true);
+    expect(Array.isArray(json.data.followUps)).toBe(true);
+    expect(typeof json.data.capability).toBe("string");
+    expect(typeof json.data.outcome).toBe("string");
+    expect(typeof json.data.intent).toBe("string");
+  });
+
   it("rejects a mismatched confirmation without executing", async () => {
     const res = await POST(
       post(

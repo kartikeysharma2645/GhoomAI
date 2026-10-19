@@ -403,6 +403,385 @@ describe("orchestrator dispatch", () => {
     expect(turn3.session.activePlan?.destination).toBe("Jaipur");
   });
 
+  it("resumes a pending trip plan when a general_search follow-up supplies dates", async () => {
+    const turn1 = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    expect(turn1.intent).toBe("plan_trip");
+    expect(turn1.outcome).toBe("clarification");
+    expect(turn1.session.activePlan).toBeUndefined();
+    expect(turn1.session.pendingPlanRequest).toMatchObject({
+      destination: "Jaipur",
+      durationDays: 3,
+      adults: 2,
+      budget: { amount: 20000 },
+      interests: ["history", "food"],
+    });
+
+    const full = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn2 = await turn(
+      turn1.session,
+      "Start date: 2026-11-10, End date: 2026-11-12. Budget: ₹10,000. Destination: Jaipur.",
+      undefined,
+      { client: asClient(full) },
+    );
+    expect(turn2.intent).toBe("plan_trip");
+    expect(turn2.outcome).toBe("completed");
+    expect(turn2.capability).toBe("planTrip");
+    expect(turn2.session.activePlan?.destination).toBe("Jaipur");
+    expect(turn2.session.activePlan?.durationDays).toBe(3);
+    expect(turn2.session.activePlan?.party.adults).toBe(2);
+    expect(turn2.session.activePlan?.budget?.amount).toBe(10000);
+    expect(turn2.session.tripStatus).toBe("PLANNED");
+    expect(turn2.session.pendingPlanRequest).toBeUndefined();
+    expect(full.searchMaps).toHaveBeenCalled();
+  });
+
+  it("preserves draft destination, duration, party and budget when the follow-up adds only dates", async () => {
+    const turn1 = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000. We love history and food.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    expect(turn1.session.pendingPlanRequest).toMatchObject({
+      destination: "Jaipur",
+      durationDays: 3,
+      adults: 2,
+      budget: { amount: 20000 },
+    });
+
+    const full = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn2 = await turn(
+      turn1.session,
+      "Destination: Jaipur. Start date is 2026-11-10 and end date is 2026-11-12.",
+      undefined,
+      { client: asClient(full) },
+    );
+    expect(turn2.outcome).toBe("completed");
+    expect(turn2.session.activePlan?.destination).toBe("Jaipur");
+    expect(turn2.session.activePlan?.durationDays).toBe(3);
+    expect(turn2.session.activePlan?.party.adults).toBe(2);
+    expect(turn2.session.activePlan?.budget?.amount).toBe(20000);
+    expect(turn2.session.tripStatus).toBe("PLANNED");
+    expect(turn2.session.pendingPlanRequest).toBeUndefined();
+  });
+
+  it("keeps a standalone general search as a search when no planning fields are stated", async () => {
+    const turn1 = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    expect(turn1.outcome).toBe("clarification");
+    expect(turn1.session.pendingPlanRequest).toBeDefined();
+
+    const fake = fakeGateway({
+      web: [{ position: 1, title: "T", link: "https://example.com", snippet: "S" }],
+    });
+    const turn2 = await turn(
+      turn1.session,
+      "Tell me about Jaipur tourism.",
+      undefined,
+      { client: asClient(fake) },
+    );
+    expect(turn2.intent).toBe("general_search");
+    expect(turn2.outcome).toBe("completed");
+    expect(turn2.capability).toBe("executeIntent");
+    expect(fake.search).toHaveBeenCalledTimes(1);
+    // The open draft is not consumed by a search that states no planning fields.
+    expect(turn2.session.pendingPlanRequest).toBeDefined();
+    expect(turn2.session.activePlan).toBeUndefined();
+  });
+
+  it("does not consume the pending trip draft for an explicit hotel-search request", async () => {
+    const turn1 = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    expect(turn1.session.pendingPlanRequest?.destination).toBe("Jaipur");
+
+    const hotels = fakeGateway({
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn2 = await turn(turn1.session, "Find hotels in Jaipur", undefined, {
+      client: asClient(hotels),
+    });
+    expect(turn2.intent).toBe("find_hotels");
+    expect(turn2.outcome).toBe("completed");
+    expect(turn2.session.pendingPlanRequest).toMatchObject({
+      destination: "Jaipur",
+    });
+    expect(turn2.session.activePlan).toBeUndefined();
+  });
+
+  it("returns clarification for invalid follow-up dates instead of fabricating a plan", async () => {
+    const turn1 = await turn(
+      createEmptySession(),
+      "Plan a 3-day trip to Jaipur for 2 adults with a budget of ₹20,000.",
+      undefined,
+      { client: asClient(fakeGateway()) },
+    );
+    expect(turn1.session.pendingPlanRequest?.destination).toBe("Jaipur");
+
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const turn2 = await turn(
+      turn1.session,
+      "Start date: 2026-11-10, End date: 2026-11-09. Destination: Jaipur.",
+      undefined,
+      { client: asClient(fake) },
+    );
+    expect(turn2.intent).toBe("plan_trip");
+    expect(turn2.outcome).toBe("clarification");
+    expect(turn2.session.activePlan).toBeUndefined();
+    expect(turn2.session.pendingPlanRequest).toBeDefined();
+    expect(turn2.message).toMatch(/end date must be after the start date/i);
+    // No research calls are made when requirements are still incomplete.
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing active plan when the user asks to show the itinerary", async () => {
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const res = await turn(sessionWithPlan("PLANNED"), "Show me the itinerary.", undefined, {
+      client: asClient(fake),
+    });
+    expect(res.intent).toBe("trip_status");
+    expect(res.outcome).toBe("completed");
+    expect(res.capability).toBe("tripSummary");
+    expect(res.session.activePlan?.destination).toBe("Jaipur");
+    expect(res.session.activePlan?.durationDays).toBe(3);
+    expect(res.message).toMatch(/current 3-day trip to Jaipur/i);
+    // No search is triggered just to display the existing plan.
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
+  it("summarizes the current trip plan without an unnecessary search", async () => {
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const res = await turn(sessionWithPlan("PLANNED"), "Summarize my current trip plan.", undefined, {
+      client: asClient(fake),
+    });
+    expect(res.outcome).toBe("completed");
+    expect(res.session.activePlan?.destination).toBe("Jaipur");
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
+  it("still runs an explicit hotel-search request when a plan exists", async () => {
+    const hotels = fakeGateway({
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const res = await turn(sessionWithPlan("PLANNED"), "Find hotels in Jaipur", undefined, {
+      client: asClient(hotels),
+    });
+    expect(res.intent).toBe("find_hotels");
+    expect(res.outcome).toBe("completed");
+    expect(res.capability).toBe("executeIntent");
+    expect(hotels.searchHotels).toHaveBeenCalledTimes(1);
+    // The existing plan is not replaced by a search result.
+    expect(res.session.activePlan?.destination).toBe("Jaipur");
+  });
+
+  it("does not claim a plan modification succeeded without actually updating the plan", async () => {
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const before = JSON.stringify(sessionWithPlan("PLANNED").activePlan);
+    const res = await turn(
+      sessionWithPlan("PLANNED"),
+      "Adjust the plan to stay within my budget.",
+      undefined,
+      { client: asClient(fake) },
+    );
+    expect(res.outcome).toBe("clarification");
+    expect(res.capability).toBe("none");
+    expect(res.message).toMatch(/what you'd like to change/i);
+    // The plan is unchanged.
+    expect(JSON.stringify(res.session.activePlan)).toBe(before);
+    // No search is triggered for a modification that needs clarification.
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
+  // ---- Phase 3: genuine plan modification tests ----
+
+  it("successfully modifies Day 2 pace of an existing itinerary", async () => {
+    const checked = await turn(twoDaySession(), "Run RealityCheck", undefined, {
+      client: asClient(fakeGateway({ maps: [PLACE], hotels: [] })),
+    });
+    const fresh = fakeGateway({
+      maps: [
+        PLACE,
+        { position: 2, title: "Amber Fort", placeId: "amber1", rating: 4.7, reviews: 1500 },
+      ],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const res = await turn(
+      checked.session,
+      "Make Day 2 more relaxed.",
+      undefined,
+      { client: asClient(fresh) },
+    );
+    expect(res.intent).toBe("plan_trip");
+    expect(res.outcome).toBe("completed");
+    expect(res.capability).toBe("planTrip");
+    expect(res.session.activePlan?.destination).toBe("Jaipur");
+    expect(res.session.tripStatus).toBe("PLANNED");
+    expect(res.session.latestCheck).toBeUndefined();
+    expect(fresh.searchMaps).toHaveBeenCalled();
+    expect(fresh.searchHotels).toHaveBeenCalled();
+  });
+
+  it("rebuilds the plan with a reduced budget and stores it", async () => {
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const res = await turn(
+      sessionWithPlan("PLANNED"),
+      "Reduce the itinerary to fit my ₹10,000 budget.",
+      undefined,
+      { client: asClient(fake) },
+    );
+    expect(res.intent).toBe("plan_trip");
+    expect(res.outcome).toBe("completed");
+    expect(res.capability).toBe("planTrip");
+    expect(res.session.activePlan?.budget?.amount).toBe(10000);
+    expect(res.session.tripStatus).toBe("PLANNED");
+    expect(res.session.latestCheck).toBeUndefined();
+    expect(fake.searchMaps).toHaveBeenCalled();
+    expect(fake.searchHotels).toHaveBeenCalled();
+  });
+
+  it("asks for clarification when the modification request is ambiguous", async () => {
+    const fake = fakeGateway({
+      maps: [PLACE],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
+    const before = JSON.stringify(sessionWithPlan("PLANNED").activePlan);
+    const res = await turn(
+      sessionWithPlan("PLANNED"),
+      "Adjust my plan.",
+      undefined,
+      { client: asClient(fake) },
+    );
+    expect(res.outcome).toBe("clarification");
+    expect(res.capability).toBe("none");
+    expect(res.message).toMatch(/what you'd like to change/i);
+    // The plan is unchanged.
+    expect(JSON.stringify(res.session.activePlan)).toBe(before);
+    expect(fake.searchMaps).not.toHaveBeenCalled();
+    expect(fake.searchHotels).not.toHaveBeenCalled();
+    expect(fake.search).not.toHaveBeenCalled();
+  });
+
+  it("preserves the original plan when replanning fails", async () => {
+    const failing = {
+      searchMaps: vi.fn().mockRejectedValue(new UpstreamError("down")),
+      searchHotels: vi.fn().mockRejectedValue(new UpstreamError("down")),
+      search: vi.fn().mockRejectedValue(new UpstreamError("down")),
+    };
+    const before = JSON.stringify(sessionWithPlan("PLANNED").activePlan);
+    const res = await turn(
+      sessionWithPlan("PLANNED"),
+      "Make it more relaxed.",
+      undefined,
+      { client: asClient(failing) },
+    );
+    expect(res.outcome).toBe("failed");
+    // The original plan is preserved in the session.
+    expect(JSON.stringify(res.session.activePlan)).toBe(before);
+    expect(res.session.tripStatus).toBe("PLANNED");
+  });
+
+  it("preserves the original plan when all modification attempts time out", async () => {
+    // All three retry attempts time out (AbortError is retryable but
+    // exhausts). The original plan must remain untouched.
+    const failing = {
+      searchMaps: vi.fn().mockRejectedValue(
+        Object.assign(new Error("aborted"), { name: "AbortError" }),
+      ),
+      searchHotels: vi.fn().mockRejectedValue(
+        Object.assign(new Error("aborted"), { name: "AbortError" }),
+      ),
+      search: vi.fn(),
+    };
+    const before = JSON.stringify(sessionWithPlan("PLANNED").activePlan);
+    const res = await turn(
+      sessionWithPlan("PLANNED"),
+      "Make it more relaxed.",
+      undefined,
+      { client: asClient(failing) },
+    );
+    expect(res.outcome).toBe("failed");
+    expect(JSON.stringify(res.session.activePlan)).toBe(before);
+    expect(res.session.tripStatus).toBe("PLANNED");
+    // Each research method was attempted once (retries happen inside
+    // requestJson at the transport level, tested in serpapi-client tests).
+    expect(failing.searchMaps).toHaveBeenCalledTimes(1);
+    expect(failing.searchHotels).toHaveBeenCalledTimes(1);
+  });
+
+  it("succeeds when the provider recovers and stores the updated plan", async () => {
+    const flakyThenOk = {
+      searchMaps: vi.fn().mockResolvedValue({
+        engine: "google_maps",
+        query: "q",
+        resultCount: 1,
+        results: [PLACE],
+      }),
+      searchHotels: vi.fn().mockResolvedValue({
+        engine: "google_hotels",
+        query: "q",
+        checkIn: "2026-11-10",
+        checkOut: "2026-11-12",
+        currency: "INR",
+        resultCount: 1,
+        results: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+      }),
+      search: vi.fn(),
+    };
+    const res = await turn(
+      sessionWithPlan("PLANNED"),
+      "Make it more relaxed.",
+      undefined,
+      { client: asClient(flakyThenOk) },
+    );
+    expect(res.outcome).toBe("completed");
+    expect(res.capability).toBe("planTrip");
+    expect(res.session.activePlan?.destination).toBe("Jaipur");
+    expect(res.session.tripStatus).toBe("PLANNED");
+    // Provider research calls were made and the plan was rebuilt.
+    expect(flakyThenOk.searchMaps).toHaveBeenCalledTimes(1);
+    expect(flakyThenOk.searchHotels).toHaveBeenCalledTimes(1);
+  });
+
   it("extracts every stated field from a fully-specified request", () => {
     expect(
       extractPlanRequest(
@@ -554,21 +933,31 @@ describe("orchestrator dispatch", () => {
     expect(fresh.searchHotels).not.toHaveBeenCalled();
   });
 
-  it("explains pace changes need replanning without calling the fixer", async () => {
+  it("rebuilds the plan with a new pace when the user asks to relax it", async () => {
     const checked = await turn(twoDaySession(), "Run RealityCheck", undefined, {
       client: asClient(fakeGateway({ maps: [PLACE], hotels: [] })),
     });
-    const fresh = fakeGateway();
+    const fresh = fakeGateway({
+      maps: [
+        PLACE,
+        { position: 2, title: "Amber Fort", placeId: "amber1", rating: 4.7, reviews: 1500 },
+      ],
+      hotels: [{ position: 1, name: "Synthetic Grand", propertyToken: "tok1" }],
+    });
     const res = await turn(
       checked.session,
       "Day 2 is too packed. Make it more relaxed.",
       undefined,
       { client: asClient(fresh) },
     );
-    expect(res.outcome).toBe("clarification");
-    expect(res.message).toMatch(/fresh plan/i);
-    expect(fresh.searchMaps).not.toHaveBeenCalled();
-    expect(fresh.searchHotels).not.toHaveBeenCalled();
+    expect(res.outcome).toBe("completed");
+    expect(res.capability).toBe("planTrip");
+    expect(res.session.activePlan).toBeDefined();
+    expect(res.session.tripStatus).toBe("PLANNED");
+    // The old check is invalidated when the plan is rebuilt.
+    expect(res.session.latestCheck).toBeUndefined();
+    expect(fresh.searchMaps).toHaveBeenCalled();
+    expect(fresh.searchHotels).toHaveBeenCalled();
   });
 
   it("applies only the approved targeted change, then offers a fresh check", async () => {

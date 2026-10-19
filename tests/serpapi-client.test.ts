@@ -134,6 +134,155 @@ describe("SerpApiClient upstream failures (mocked transport only)", () => {
   });
 });
 
+describe("SerpApiClient retry policy (bounded, transient-only)", () => {
+  it("retries on timeout and succeeds on the second attempt", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("aborted"), { name: "AbortError" }),
+      )
+      .mockResolvedValue(
+        new Response(JSON.stringify({ organic_results: [] }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const result = await client.search({
+      engine: "google",
+      query: "best places to visit Jaipur",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.resultCount).toBe(0);
+  });
+
+  it("retries on HTTP 429 and succeeds on the second attempt", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "rate limited" }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValue(
+        new Response(JSON.stringify({ organic_results: [] }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const result = await client.search({
+      engine: "google",
+      query: "best places to visit Jaipur",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.resultCount).toBe(0);
+  });
+
+  it("retries on HTTP 5xx and succeeds on the third attempt", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "internal error" }), {
+          status: 500,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "unavailable" }), {
+          status: 503,
+        }),
+      )
+      .mockResolvedValue(
+        new Response(JSON.stringify({ organic_results: [] }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const result = await client.search({
+      engine: "google",
+      query: "best places to visit Jaipur",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.resultCount).toBe(0);
+  });
+
+  it("exhausts retries when all attempts time out", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn().mockRejectedValue(
+      Object.assign(new Error("aborted"), { name: "AbortError" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    await expect(
+      client.search({ engine: "google", query: "best places to visit Jaipur" }),
+    ).rejects.toThrow("Search provider request timed out.");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("exhausts retries when all attempts return 5xx", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "down" }), { status: 500 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const failure = await client
+      .search({ engine: "google", query: "best places to visit Jaipur" })
+      .catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).status).toBe(500);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry non-transient HTTP 400", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "bad request" }), { status: 400 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const failure = await client
+      .search({ engine: "google", query: "best places to visit Jaipur" })
+      .catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).status).toBe(400);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry non-transient HTTP 401", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "invalid key" }), { status: 401 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const failure = await client
+      .search({ engine: "google", query: "best places to visit Jaipur" })
+      .catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect((failure as UpstreamError).status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("respects Retry-After header on 429 (capped at MAX_BACKOFF_MS)", async () => {
+    setKey(MOCK_KEY);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "rate limited" }), {
+          status: 429,
+          headers: { "retry-after": "1", "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValue(
+        new Response(JSON.stringify({ organic_results: [] }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SerpApiClient();
+    const result = await client.search({
+      engine: "google",
+      query: "best places to visit Jaipur",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.resultCount).toBe(0);
+  });
+});
+
 describe("SerpApiClient Google Maps support", () => {
   it("accepts the google_maps engine and sends type=search", async () => {
     setKey(MOCK_KEY);
