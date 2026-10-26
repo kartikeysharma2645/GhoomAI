@@ -72,22 +72,58 @@ export async function planTrip(
   ]);
 
   const researchWarnings: string[] = [];
+  let hotelsFailed = false;
+  let placesFailed = false;
+  let hotelRejectionReason: unknown;
+  let placeResearch:
+    | { attractions: "searched" | "empty" | "failed" | "skipped"; food: "searched" | "empty" | "failed" | "skipped" }
+    | undefined;
+
   if (hotelsSettled.status === "rejected") {
+    hotelsFailed = true;
+    hotelRejectionReason = hotelsSettled.reason;
     researchWarnings.push(
       "Accommodation research failed; the plan has no stay section.",
     );
   }
   if (placesSettled.status === "rejected") {
+    placesFailed = true;
     researchWarnings.push(
-      "Attraction research failed; days contain no timed activities.",
+      "Attraction research could not be completed; days contain no timed activities.",
     );
+  } else {
+    const pr = placesSettled.value.research;
+    placeResearch = {
+      attractions: pr.attractions,
+      food: pr.food,
+    };
+    if (pr.attractions === "failed") {
+      researchWarnings.push(
+        "Attraction research could not be completed; timed activities may be missing.",
+      );
+    } else if (pr.attractions === "empty") {
+      researchWarnings.push(
+        "No attraction candidates were found for this destination. Try a broader destination name.",
+      );
+    }
+    if (pr.food === "failed") {
+      researchWarnings.push(
+        "Restaurant research could not be completed; meal suggestions are unavailable.",
+      );
+    } else if (pr.food === "empty") {
+      researchWarnings.push(
+        "No restaurant candidates were found for this destination; lunch breaks are untimed placeholders.",
+      );
+    }
   }
-  if (
-    hotelsSettled.status === "rejected" &&
-    placesSettled.status === "rejected"
-  ) {
-    throw hotelsSettled.reason instanceof Error
-      ? hotelsSettled.reason
+
+  // Only hard-fail when BOTH accommodation and attraction research failed —
+  // there is nothing meaningful to build. Otherwise proceed with what we have.
+  const placesCompletelyFailed =
+    placesFailed || placeResearch?.attractions === "failed";
+  if (hotelsFailed && placesCompletelyFailed) {
+    throw hotelRejectionReason instanceof Error
+      ? hotelRejectionReason
       : new Error("Trip research failed.");
   }
 
@@ -102,7 +138,9 @@ export async function planTrip(
           attractions: [],
           food: [],
           interestExtra: [],
-          queries: { attractions: "" },
+          queries: { attractions: "", food: undefined, interest: undefined },
+          research: { attractions: "failed", food: "failed" },
+          attempts: [],
         };
   const places = [...placePools.attractions, ...placePools.interestExtra];
   const food = placePools.food;
@@ -150,6 +188,7 @@ export async function planTrip(
     destinationContext,
     hotelsQuery,
     queryForPlace: (place) => origin.get(place),
+    research: placeResearch,
   });
 
   return { status: "ready", plan };

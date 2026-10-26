@@ -16,7 +16,7 @@ function report(extra: Record<string, unknown> = {}) {
     ok: true,
     data: {
       checkedAt: "2026-10-05T09:46:09.235Z",
-      summary: { verified: 13, needsAttention: 0, problem: 0, unverified: 4 },
+      summary: { verified: 13, needsAttention: 0, problem: 0, unverified: 4, notApplicable: 0 },
       items: [
         {
           itemId: "d1-attraction-1",
@@ -36,31 +36,31 @@ function report(extra: Record<string, unknown> = {}) {
 describe("deriveOverallStatus", () => {
   it("reports PROBLEM when any problem exists", () => {
     expect(
-      deriveOverallStatus({ verified: 10, needsAttention: 2, problem: 1, unverified: 3 }),
+      deriveOverallStatus({ verified: 10, needsAttention: 2, problem: 1, unverified: 3, notApplicable: 0 }),
     ).toBe("PROBLEM");
   });
 
   it("reports NEEDS_ATTENTION when attention exists without problems", () => {
     expect(
-      deriveOverallStatus({ verified: 10, needsAttention: 1, problem: 0, unverified: 0 }),
+      deriveOverallStatus({ verified: 10, needsAttention: 1, problem: 0, unverified: 0, notApplicable: 0 }),
     ).toBe("NEEDS_ATTENTION");
   });
 
   it("reports VERIFIED when only verified and unverified items exist", () => {
     expect(
-      deriveOverallStatus({ verified: 5, needsAttention: 0, problem: 0, unverified: 4 }),
+      deriveOverallStatus({ verified: 5, needsAttention: 0, problem: 0, unverified: 4, notApplicable: 0 }),
     ).toBe("VERIFIED");
   });
 
   it("reports UNVERIFIED when nothing was verified", () => {
     expect(
-      deriveOverallStatus({ verified: 0, needsAttention: 0, problem: 0, unverified: 4 }),
+      deriveOverallStatus({ verified: 0, needsAttention: 0, problem: 0, unverified: 4, notApplicable: 0 }),
     ).toBe("UNVERIFIED");
   });
 
   it("reports UNVERIFIED for an empty report", () => {
     expect(
-      deriveOverallStatus({ verified: 0, needsAttention: 0, problem: 0, unverified: 0 }),
+      deriveOverallStatus({ verified: 0, needsAttention: 0, problem: 0, unverified: 0, notApplicable: 0 }),
     ).toBe("UNVERIFIED");
   });
 });

@@ -52,14 +52,14 @@ const BASE_PLAN = {
 
 const CLEAN_CHECK = {
   checkedAt: "2026-10-06T00:00:00Z",
-  summary: { verified: 1, needsAttention: 1, problem: 0, unverified: 0 },
+  summary: { verified: 1, needsAttention: 1, problem: 0, unverified: 0, notApplicable: 0 },
   items: [],
   warnings: [],
 };
 
 const BLOCKED_CHECK = {
   ...CLEAN_CHECK,
-  summary: { verified: 0, needsAttention: 0, problem: 2, unverified: 0 },
+  summary: { verified: 0, needsAttention: 0, problem: 2, unverified: 0, notApplicable: 0 },
 };
 
 describe("evaluateBookingReadiness", () => {

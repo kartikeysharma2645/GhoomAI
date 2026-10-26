@@ -34,7 +34,7 @@ describe("query builders", () => {
       }),
     ).toEqual({
       engine: "google_hotels",
-      query: "Synthetic Grand",
+      query: "Synthetic Grand Jaipur",
       checkIn: "2026-11-10",
       checkOut: "2026-11-13",
       adults: 2,

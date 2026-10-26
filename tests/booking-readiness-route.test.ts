@@ -128,7 +128,7 @@ describe("POST /api/trips/booking-readiness", () => {
   it("blocks READY when the RealityCheck exposes PROBLEM items", async () => {
     const check = {
       checkedAt: "2026-10-06T00:00:00Z",
-      summary: { verified: 0, needsAttention: 0, problem: 1, unverified: 0 },
+      summary: { verified: 0, needsAttention: 0, problem: 1, unverified: 0, notApplicable: 0 },
       items: [],
       warnings: [],
     };

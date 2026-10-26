@@ -83,13 +83,15 @@ interface Skipped {
   kind: string;
   title: string;
   reason: string;
+  status: VerificationStatus;
 }
 
 function statusPrecedence(statuses: VerificationStatus[]): VerificationStatus {
   if (statuses.includes("PROBLEM")) return "PROBLEM";
   if (statuses.includes("NEEDS_ATTENTION")) return "NEEDS_ATTENTION";
   if (statuses.includes("VERIFIED")) return "VERIFIED";
-  return "UNVERIFIED";
+  if (statuses.includes("UNVERIFIED")) return "UNVERIFIED";
+  return "NOT_APPLICABLE";
 }
 
 function factStatus(outcome: FactCheck["outcome"]): VerificationStatus | null {
@@ -501,6 +503,7 @@ export async function checkTrip(
             kind: item.kind,
             title: item.title,
             reason: "Meal has no identifiable place; not independently verifiable.",
+            status: "NOT_APPLICABLE",
           });
         }
       } else {
@@ -509,7 +512,9 @@ export async function checkTrip(
           kind: item.kind,
           title: item.title,
           reason: "Informational item; not independently verifiable.",
+          status: "NOT_APPLICABLE",
         });
+        continue;
       }
     }
   }
@@ -543,6 +548,7 @@ export async function checkTrip(
         title: plan.stay.hotelName,
         reason:
           "Exact travel dates are required for hotel re-verification; flexible-date prices cannot be fairly re-checked.",
+        status: "UNVERIFIED",
       });
     }
   }
@@ -605,7 +611,7 @@ export async function checkTrip(
       itemId: s.itemId,
       kind: s.kind,
       title: s.title,
-      status: "UNVERIFIED",
+      status: s.status,
       facts: [],
       reasons: [s.reason],
     });
@@ -622,6 +628,7 @@ export async function checkTrip(
     needsAttention: itemChecks.filter((c) => c.status === "NEEDS_ATTENTION").length,
     problem: itemChecks.filter((c) => c.status === "PROBLEM").length,
     unverified: itemChecks.filter((c) => c.status === "UNVERIFIED").length,
+    notApplicable: itemChecks.filter((c) => c.status === "NOT_APPLICABLE").length,
   };
 
   return { checkedAt, summary, items: itemChecks, warnings };

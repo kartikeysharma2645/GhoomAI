@@ -196,17 +196,18 @@ describe("realitycheck service", () => {
     fake.searchHotels.mockRejectedValue(new UpstreamError("down"));
     const res = await checkTrip(plan(), asClient(fake), NOW);
     expect(res.summary.verified).toBe(0);
-    expect(res.summary.unverified).toBe(3);
+    expect(res.summary.unverified).toBe(2);
+    expect(res.summary.notApplicable).toBe(1);
     expect(
       res.warnings.some((w) => w.includes("All verification requests failed")),
     ).toBe(true);
   });
 
-  it("marks notes and generic meals UNVERIFIED", async () => {
+  it("marks notes and generic meals NOT_APPLICABLE", async () => {
     const fake = fakeClient(FRESH_PLACE, FRESH_HOTEL);
     const res = await checkTrip(plan(), asClient(fake), NOW);
     const note = res.items.find((i) => i.itemId === "d1-note-1");
-    expect(note?.status).toBe("UNVERIFIED");
+    expect(note?.status).toBe("NOT_APPLICABLE");
   });
 
   it("treats unmatchable places as UNVERIFIED, not PROBLEM", async () => {

@@ -11,7 +11,8 @@ export type CheckStatus =
   | "VERIFIED"
   | "NEEDS_ATTENTION"
   | "PROBLEM"
-  | "UNVERIFIED";
+  | "UNVERIFIED"
+  | "NOT_APPLICABLE";
 
 export interface CheckFact {
   fact: string;
@@ -59,6 +60,7 @@ export interface RealityCheckData {
     needsAttention: number;
     problem: number;
     unverified: number;
+    notApplicable: number;
   };
   items: CheckItem[];
   warnings: string[];
@@ -69,6 +71,7 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([
   "NEEDS_ATTENTION",
   "PROBLEM",
   "UNVERIFIED",
+  "NOT_APPLICABLE",
 ]);
 
 export const STATUS_COPY: Record<CheckStatus, string> = {
@@ -76,6 +79,7 @@ export const STATUS_COPY: Record<CheckStatus, string> = {
   NEEDS_ATTENTION: "Evidence changed or is uncertain enough to review.",
   PROBLEM: "Strong contradiction requiring attention.",
   UNVERIFIED: "No sufficient evidence — could not be verified.",
+  NOT_APPLICABLE: "Does not require independent verification.",
 };
 
 const STATUS_STYLE: Record<CheckStatus, string> = {
@@ -83,6 +87,7 @@ const STATUS_STYLE: Record<CheckStatus, string> = {
   NEEDS_ATTENTION: "border-amber-200 bg-amber-50 text-amber-800",
   PROBLEM: "border-red-200 bg-red-50 text-red-800",
   UNVERIFIED: "border-stone-200 bg-stone-100 text-stone-600",
+  NOT_APPLICABLE: "border-stone-200 bg-stone-100 text-stone-500",
 };
 
 export const STATUS_LABEL: Record<CheckStatus, string> = {
@@ -90,6 +95,7 @@ export const STATUS_LABEL: Record<CheckStatus, string> = {
   NEEDS_ATTENTION: "Needs attention",
   PROBLEM: "Problem",
   UNVERIFIED: "Unverified",
+  NOT_APPLICABLE: "Not applicable",
 };
 
 /** Human-readable label for any status string; unknown values pass through. */
@@ -118,10 +124,14 @@ export function deriveOverallStatus(summary: {
   needsAttention: number;
   problem: number;
   unverified: number;
+  notApplicable: number;
 }): CheckStatus {
   if (summary.problem > 0) return "PROBLEM";
   if (summary.needsAttention > 0) return "NEEDS_ATTENTION";
   if (summary.verified > 0) return "VERIFIED";
+  if (summary.notApplicable > 0 && summary.unverified === 0) {
+    return "NOT_APPLICABLE";
+  }
   return "UNVERIFIED";
 }
 
@@ -211,11 +221,13 @@ export function parseRealityCheckResponse(
   const needsAttention = toCount(data.summary.needsAttention);
   const problem = toCount(data.summary.problem);
   const unverified = toCount(data.summary.unverified);
+  const notApplicable = toCount(data.summary.notApplicable);
   if (
     verified === null ||
     needsAttention === null ||
     problem === null ||
-    unverified === null
+    unverified === null ||
+    notApplicable === null
   ) {
     return null;
   }
@@ -228,7 +240,7 @@ export function parseRealityCheckResponse(
     : [];
   return {
     checkedAt: data.checkedAt,
-    summary: { verified, needsAttention, problem, unverified },
+    summary: { verified, needsAttention, problem, unverified, notApplicable },
     items,
     warnings,
   };
@@ -239,6 +251,7 @@ const STATUS_DOT: Record<CheckStatus, string> = {
   NEEDS_ATTENTION: "bg-amber-500",
   PROBLEM: "bg-red-600",
   UNVERIFIED: "bg-stone-400",
+  NOT_APPLICABLE: "bg-stone-500",
 };
 
 /** Status glyphs are decorative; the adjacent text label carries meaning. */
@@ -247,6 +260,7 @@ const STATUS_GLYPH: Record<CheckStatus, string> = {
   NEEDS_ATTENTION: "⚠",
   PROBLEM: "✕",
   UNVERIFIED: "•",
+  NOT_APPLICABLE: "–",
 };
 
 function statusBadge(status: string) {
@@ -339,6 +353,7 @@ export default function RealityCheckReport({
             ["NEEDS_ATTENTION", data.summary.needsAttention],
             ["PROBLEM", data.summary.problem],
             ["UNVERIFIED", data.summary.unverified],
+            ["NOT_APPLICABLE", data.summary.notApplicable],
           ] as Array<[CheckStatus, number]>
         ).map(([status, count]) => (
           <div

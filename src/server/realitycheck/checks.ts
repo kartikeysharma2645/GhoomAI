@@ -14,6 +14,7 @@ export const VERIFICATION_STATUSES = [
   "NEEDS_ATTENTION",
   "PROBLEM",
   "UNVERIFIED",
+  "NOT_APPLICABLE",
 ] as const;
 
 export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
@@ -85,6 +86,7 @@ export const realityCheckResultSchema = z.object({
     needsAttention: z.number().int().nonnegative(),
     problem: z.number().int().nonnegative(),
     unverified: z.number().int().nonnegative(),
+    notApplicable: z.number().int().nonnegative(),
   }),
   items: z.array(itemCheckSchema),
   warnings: z.array(z.string()),

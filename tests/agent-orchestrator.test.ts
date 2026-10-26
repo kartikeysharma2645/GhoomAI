@@ -920,9 +920,10 @@ describe("orchestrator dispatch", () => {
     expect(res.outcome).toBe("failed");
     expect(JSON.stringify(res.session.activePlan)).toBe(before);
     expect(res.session.tripStatus).toBe("PLANNED");
-    // Each research method was attempted once (retries happen inside
-    // requestJson at the transport level, tested in serpapi-client tests).
-    expect(failing.searchMaps).toHaveBeenCalledTimes(1);
+    // Each research method was attempted (attractions try 3 fallback queries
+    // when all fail, plus one food query). Retries happen inside requestJson
+    // at the transport level, tested in serpapi-client tests.
+    expect(failing.searchMaps).toHaveBeenCalledTimes(4);
     expect(failing.searchHotels).toHaveBeenCalledTimes(1);
   });
 
@@ -931,8 +932,8 @@ describe("orchestrator dispatch", () => {
       searchMaps: vi.fn().mockResolvedValue({
         engine: "google_maps",
         query: "q",
-        resultCount: 1,
-        results: [PLACE],
+        resultCount: 4,
+        results: [PLACE, PLACE, PLACE, PLACE],
       }),
       searchHotels: vi.fn().mockResolvedValue({
         engine: "google_hotels",
@@ -955,8 +956,9 @@ describe("orchestrator dispatch", () => {
     expect(res.capability).toBe("planTrip");
     expect(res.session.activePlan?.destination).toBe("Jaipur");
     expect(res.session.tripStatus).toBe("PLANNED");
-    // Provider research calls were made and the plan was rebuilt.
-    expect(flakyThenOk.searchMaps).toHaveBeenCalledTimes(1);
+    // Provider research calls were made and the plan was rebuilt
+    // (one attractions query + one food query).
+    expect(flakyThenOk.searchMaps).toHaveBeenCalledTimes(2);
     expect(flakyThenOk.searchHotels).toHaveBeenCalledTimes(1);
   });
 

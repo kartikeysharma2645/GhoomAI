@@ -43,6 +43,14 @@ export interface BuilderInput {
    * Absent in unit tests — evidence query is then omitted.
    */
   queryForPlace?: (place: NormalizedMapsPlace) => string | undefined;
+  /**
+   * Research status per category, so the builder can surface honest
+   * warnings instead of presenting a blank itinerary as complete.
+   */
+  research?: {
+    attractions: "searched" | "empty" | "failed" | "skipped";
+    food: "searched" | "empty" | "failed" | "skipped";
+  };
 }
 
 export const ROUTE_WARNING =
@@ -217,6 +225,30 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
     researchWarnings,
   } = input;
   const warnings: string[] = [...researchWarnings, ROUTE_WARNING];
+
+  // Research-completeness warnings: be honest when live data could not be
+  // gathered, instead of presenting a placeholder-filled itineration as
+  // fully researched.
+  if (input.research) {
+    if (input.research.attractions === "failed") {
+      warnings.push(
+        "Attraction research could not be completed; timed activities may be missing. Try again or refine your destination.",
+      );
+    } else if (input.research.attractions === "empty") {
+      warnings.push(
+        "No attraction candidates were found for this destination. Try a broader destination name (for example, a city instead of a specific venue).",
+      );
+    }
+    if (input.research.food === "failed") {
+      warnings.push(
+        "Restaurant research could not be completed; meal suggestions are unavailable. Try again later.",
+      );
+    } else if (input.research.food === "empty") {
+      warnings.push(
+        "No restaurant candidates were found for this destination; lunch breaks are untimed placeholders.",
+      );
+    }
+  }
 
   const dayCount = requirements.durationDays;
   const nights = Math.max(dayCount - 1, 0);

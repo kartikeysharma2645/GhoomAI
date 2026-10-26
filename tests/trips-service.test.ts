@@ -80,7 +80,7 @@ describe("trip service", () => {
     expect(arg.adults).toBe(2);
   });
 
-  it("queries restaurants only when food is requested", async () => {
+  it("always queries restaurants for meal recommendations", async () => {
     const withoutFood = fakeClient();
     await planTrip(
       { ...request(), interests: ["history"] },
@@ -90,7 +90,8 @@ describe("trip service", () => {
     const historyQueries = withoutFood.searchMaps.mock.calls.map(
       (c) => (c[0] as { query: string }).query,
     );
-    expect(historyQueries.some((q) => q.includes("restaurants"))).toBe(false);
+    // Restaurants are always researched, regardless of stated interests.
+    expect(historyQueries.some((q) => q.includes("restaurants"))).toBe(true);
     expect(historyQueries).toContain("tourist attractions in Jaipur");
 
     const withFood = fakeClient();
@@ -99,12 +100,11 @@ describe("trip service", () => {
       asClient(withFood),
       NOW,
     );
-    expect(withFood.searchMaps).toHaveBeenCalledTimes(2);
-    const second = withFood.searchMaps.mock.calls[1][0] as Record<
-      string,
-      unknown
-    >;
-    expect(String(second.query)).toContain("restaurants");
+    const foodQueries = withFood.searchMaps.mock.calls.map(
+      (c) => (c[0] as { query: string }).query,
+    );
+    expect(foodQueries.some((q) => q.includes("restaurants"))).toBe(true);
+    expect(foodQueries).toContain("tourist attractions in Jaipur");
   });
 
   it("returns a partial plan without fabricated stays on hotel failure", async () => {

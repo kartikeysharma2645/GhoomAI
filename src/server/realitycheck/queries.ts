@@ -75,7 +75,10 @@ export interface StayQueryInput {
 export function buildHotelQuery(input: StayQueryInput): HotelVerificationQuery {
   return {
     engine: "google_hotels",
-    query: input.hotelName.slice(0, 300),
+    // Include destination in the query so the provider can narrow results
+    // to the right city/region instead of returning a same-named property
+    // anywhere in the world.
+    query: `${input.hotelName} ${input.destination}`.slice(0, 300),
     checkIn: input.checkIn,
     checkOut: input.checkOut,
     adults: input.adults,
@@ -92,7 +95,9 @@ export type PlaceMatch =
 /**
  * Matches fresh Maps candidates to the planned place.
  * Confident: stable placeId equality. Fallback: normalized title equality.
- * Anything weaker is no match — never force one.
+ * Weaker fallback: one normalized title contains the other (reasonable
+ * name variations, e.g. "Red Fort" vs "The Red Fort"). Anything weaker
+ * is no match — never force one.
  */
 export function matchPlace(
   candidates: NormalizedMapsPlace[],
@@ -105,10 +110,26 @@ export function matchPlace(
   }
   const want = normalizeName(title);
   if (!want) return { matched: false };
+  // Exact normalized name match first.
   const byName = candidates.find(
     (c) => c.title && normalizeName(c.title) === want,
   );
   if (byName) return { matched: true, confident: false, place: byName };
+  // Contains match: handles "Fort X" vs "The Fort X" style variations.
+  // Only accepted when the shorter name is a meaningful substring of the
+  // longer one (avoids matching "Park" against "Parking Lot").
+  const byContains = candidates.find((c) => {
+    if (!c.title) return false;
+    const got = normalizeName(c.title);
+    const shorter = want.length <= got.length ? want : got;
+    const longer = want.length <= got.length ? got : want;
+    return (
+      shorter.length >= 3 &&
+      longer.includes(shorter) &&
+      longer.length - shorter.length <= 20
+    );
+  });
+  if (byContains) return { matched: true, confident: false, place: byContains };
   return { matched: false };
 }
 

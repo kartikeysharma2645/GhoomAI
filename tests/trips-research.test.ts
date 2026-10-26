@@ -32,8 +32,13 @@ function fakeClient() {
     searchMaps: vi.fn().mockResolvedValue({
       engine: "google_maps",
       query: "q",
-      resultCount: 0,
-      results: [],
+      resultCount: 4,
+      results: [
+        { title: "Place A", rating: 4.5 },
+        { title: "Place B", rating: 4.2 },
+        { title: "Place C", rating: 4.0 },
+        { title: "Place D", rating: 3.8 },
+      ],
     }),
     search: vi.fn().mockResolvedValue({
       engine: "google",
@@ -76,12 +81,13 @@ describe("interest-aware research", () => {
     });
   }
 
-  it("skips restaurant research when food is not requested", async () => {
+  it("always researches restaurants regardless of interests", async () => {
     const fake = fakeClient();
     await researchPlaces(asClient(fake), requirements({ interests: ["history"] }));
     const queries = queriesOf(fake);
-    expect(queries).toHaveLength(2);
-    expect(queries.some((q) => q.includes("restaurants"))).toBe(false);
+    expect(queries.some((q) => q.includes("restaurants"))).toBe(true);
+    expect(queries).toContain("tourist attractions in Jaipur");
+    expect(queries).toContain("historic sites in Jaipur");
   });
 
   it("caps at one interest query beyond attractions and food", async () => {

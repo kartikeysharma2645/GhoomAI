@@ -89,7 +89,7 @@ function problemCheck(itemId: string, title: string, kind = "attraction") {
 function check(items: unknown[]): RealityCheckResult {
   return {
     checkedAt: NOW.toISOString(),
-    summary: { verified: 0, needsAttention: 0, problem: 0, unverified: 0 },
+    summary: { verified: 0, needsAttention: 0, problem: 0, unverified: 0, notApplicable: 0 },
     items: items as RealityCheckResult["items"],
     warnings: [],
   };

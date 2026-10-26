@@ -171,6 +171,12 @@ function EvidenceLine({ evidence }: { evidence: PlanEvidence[] }) {
 }
 
 export default function ItineraryView({ plan }: { plan: TripPlanData }) {
+  const hasAttractions = plan.days.some((day) =>
+    day.items.some((item) => item.kind === "attraction"),
+  );
+  const researchIncomplete =
+    plan.days.length > 0 && !hasAttractions;
+
   return (
     <section aria-label={`Itinerary for ${plan.destination}`} className="space-y-3">
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
@@ -212,21 +218,26 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
             </p>
             {plan.stay.total && (
               <p className="text-stone-600">
-                {formatMoney(plan.stay.total.amount, plan.stay.total.currency)}{" "}
-                <span className="text-xs">({plan.stay.total.basis} price)</span>
+                Accommodation subtotal:{ " "}
+                {formatMoney(plan.stay.total.amount, plan.stay.total.currency)}
+                <span className="text-xs">({plan.stay.total.basis} price, stay only)</span>
               </p>
             )}
           </div>
         )}
-        {plan.totals.liveTotal && (
+        {plan.totals.liveTotal && plan.totals.liveTotal.amount !== undefined && (
           <p className="mt-2 text-sm font-medium text-stone-900">
-            Live total:{" "}
+            Accommodation subtotal (stay only):{" "}
             {formatMoney(
               plan.totals.liveTotal.amount,
               plan.totals.liveTotal.currency,
             )}
           </p>
         )}
+        <p className="mt-1.5 text-sm text-stone-500">
+          Meals, attraction entry fees, and transport are not priced. Total
+          trip cost: {plan.budgetVerdict === "unknown" ? "unknown" : "partially priced"}.
+        </p>
         </div>
       </div>
 
@@ -261,6 +272,21 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
             )}
           </div>
         )}
+
+      {researchIncomplete && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+            <span aria-hidden="true">⚠</span>
+            Incomplete research
+          </h3>
+          <p className="mt-1.5 text-sm text-amber-800">
+            No timed attractions were researched for this itinerary. The days
+            below contain only meal breaks and leisure notes — not live-verified
+            activities. Refine your destination (for example, use a city or
+            region instead of a specific venue) and plan again.
+          </p>
+        </div>
+      )}
 
       {plan.days.length === 0 && (
         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">

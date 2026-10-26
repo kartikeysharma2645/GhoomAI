@@ -41,6 +41,14 @@ export const INTEREST_MAPS_QUERIES: Record<string, string> = {
 export const FOOD_MAPS_QUERY = "restaurants in {destination}";
 export const ATTRACTIONS_MAPS_QUERY = "tourist attractions in {destination}";
 
+/** Fallback attraction queries tried when the primary query returns too few
+ * results. Used by the research layer to avoid ending up with an empty
+ * attraction pool for a valid destination. */
+export const ATTRACTIONS_FALLBACK_QUERIES = [
+  "things to do in {destination}",
+  "places to visit in {destination}",
+];
+
 export function renderMapsQuery(
   template: string,
   destination: string,
