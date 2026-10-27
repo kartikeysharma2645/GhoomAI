@@ -103,6 +103,10 @@ export interface TripPlanData {
     currency: string;
   };
   pricesVerified: boolean;
+  researchStatus?: {
+    attractions: "searched" | "empty" | "failed" | "skipped";
+    food: "searched" | "empty" | "failed" | "skipped";
+  };
 }
 
 function formatMoney(amount: number | undefined, currency: string): string {
@@ -170,12 +174,28 @@ function EvidenceLine({ evidence }: { evidence: PlanEvidence[] }) {
   );
 }
 
-export default function ItineraryView({ plan }: { plan: TripPlanData }) {
+export default function ItineraryView({
+  plan,
+  onRetryResearch,
+  onBroadenSearch,
+  onRefineDestination,
+}: {
+  plan: TripPlanData;
+  onRetryResearch?: () => void;
+  onBroadenSearch?: () => void;
+  onRefineDestination?: () => void;
+}) {
   const hasAttractions = plan.days.some((day) =>
     day.items.some((item) => item.kind === "attraction"),
   );
   const researchIncomplete =
     plan.days.length > 0 && !hasAttractions;
+  const researchFailed =
+    plan.researchStatus?.attractions === "failed" ||
+    plan.researchStatus?.food === "failed";
+  const researchEmpty =
+    plan.researchStatus?.attractions === "empty" ||
+    plan.researchStatus?.food === "empty";
 
   return (
     <section aria-label={`Itinerary for ${plan.destination}`} className="space-y-3">
@@ -241,6 +261,61 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
         </div>
       </div>
 
+      {/* Research completeness summary */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-stone-900">Research summary</h3>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <p className="text-xs text-stone-500">Attractions found</p>
+            <p className="text-lg font-bold tabular-nums text-stone-900">
+              {plan.days.reduce(
+                (n, d) => n + d.items.filter((i) => i.kind === "attraction").length,
+                0,
+              )}
+            </p>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <p className="text-xs text-stone-500">Restaurant options</p>
+            <p className="text-lg font-bold tabular-nums text-stone-900">
+              {plan.days.reduce(
+                (n, d) => n + d.items.filter((i) => i.kind === "meal").length,
+                0,
+              )}
+            </p>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <p className="text-xs text-stone-500">Accommodation</p>
+            <p className="text-lg font-bold tabular-nums text-stone-900">
+              {plan.stay ? "1" : "0"}
+            </p>
+          </div>
+        </div>
+        {plan.researchStatus && (
+          <div className="mt-3 space-y-1">
+            {plan.researchStatus.attractions !== "searched" && (
+              <p className={`text-xs ${plan.researchStatus.attractions === "failed" ? "text-red-600" : "text-amber-600"}`}>
+                Attractions:{" "}
+                {plan.researchStatus.attractions === "failed"
+                  ? "research failed"
+                  : plan.researchStatus.attractions === "empty"
+                    ? "no results found"
+                    : "skipped"}
+              </p>
+            )}
+            {plan.researchStatus.food !== "searched" && (
+              <p className={`text-xs ${plan.researchStatus.food === "failed" ? "text-red-600" : "text-amber-600"}`}>
+                Restaurants:{" "}
+                {plan.researchStatus.food === "failed"
+                  ? "research failed"
+                  : plan.researchStatus.food === "empty"
+                    ? "no results found"
+                    : "skipped"}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {plan.destinationContext &&
         plan.destinationContext.summary.length > 0 && (
           <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
@@ -282,9 +357,44 @@ export default function ItineraryView({ plan }: { plan: TripPlanData }) {
           <p className="mt-1.5 text-sm text-amber-800">
             No timed attractions were researched for this itinerary. The days
             below contain only meal breaks and leisure notes — not live-verified
-            activities. Refine your destination (for example, use a city or
-            region instead of a specific venue) and plan again.
+            activities.
           </p>
+          {researchFailed && (
+            <p className="mt-1 text-xs text-amber-600">
+              Some research requests could not be completed. You can retry below.
+            </p>
+          )}
+          {researchEmpty && !researchFailed && (
+            <p className="mt-1 text-xs text-amber-600">
+              No results were found for this destination. Try broadening or
+              refining your destination below.
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onRetryResearch}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              disabled={!researchFailed || !onRetryResearch}
+            >
+              Retry research
+            </button>
+            <button
+              type="button"
+              onClick={onBroadenSearch}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              disabled={!researchEmpty || !onBroadenSearch}
+            >
+              Broaden search
+            </button>
+            <button
+              type="button"
+              onClick={onRefineDestination}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Refine destination
+            </button>
+          </div>
         </div>
       )}
 

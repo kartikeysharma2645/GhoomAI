@@ -165,6 +165,13 @@ export const tripPlanSchema = z.object({
       ),
     })
     .optional(),
+  /** Research status per category, for UI recovery controls. */
+  researchStatus: z
+    .object({
+      attractions: z.enum(["searched", "empty", "failed", "skipped"]),
+      food: z.enum(["searched", "empty", "failed", "skipped"]),
+    })
+    .optional(),
 });
 
 export type TripPlan = z.infer<typeof tripPlanSchema>;

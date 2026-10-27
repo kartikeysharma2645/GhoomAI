@@ -83,6 +83,16 @@ const DEFAULT_DURATION_MINUTES = 120;
 const OUTDOOR_RE = /fort|palace|viewpoint|lake|garden|park|tower|sunset/i;
 const INDOOR_RE = /museum|gallery|market|mall|bazaar/i;
 
+/** Estimated average activity entry fee per person (currency-agnostic,
+ * applied to the trip currency). Marked as "estimated" basis. */
+const ESTIMATED_ACTIVITY_COST_PER_PERSON = 500;
+
+/** Estimated average meal cost per person per day. */
+const ESTIMATED_MEAL_COST_PER_PERSON = 800;
+
+/** Estimated average local transport cost per person per day. */
+const ESTIMATED_TRANSPORT_COST_PER_PERSON = 400;
+
 function placeText(place: NormalizedMapsPlace): string {
   return `${place.title ?? ""} ${place.placeType ?? ""} ${(place.placeTypes ?? []).join(" ")}`;
 }
@@ -252,6 +262,9 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
 
   const dayCount = requirements.durationDays;
   const nights = Math.max(dayCount - 1, 0);
+  const partySize =
+    requirements.adults + (requirements.children ?? 0) +
+    (requirements.teenagers ?? 0) + (requirements.seniors ?? 0);
 
   // ---- Stay selection ----
   let stay: TripPlan["stay"];
@@ -351,6 +364,7 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
   }
 
   const scheduledCount = dayPicks.reduce((n, d) => n + (d?.length ?? 0), 0);
+  const attractionSlots = scheduledCount;
   if (scheduledCount < capacity) {
     warnings.push(
       `Only ${scheduledCount} rated place(s) were found for ${capacity} planned slot(s); ` +
@@ -446,6 +460,14 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
         notes: pick.place.openState
           ? `Reported status: ${pick.place.openState}.`
           : undefined,
+        cost: attractionSlots > 0
+          ? {
+              label: "Entry fee (estimated)",
+              amount: ESTIMATED_ACTIVITY_COST_PER_PERSON * partySize,
+              currency,
+              basis: "estimated",
+            }
+          : undefined,
       });
     });
 
@@ -476,6 +498,12 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
         ],
         selectionReasons: ["live restaurant candidate"],
         notes: "Pick from live restaurant options; hours vary by venue.",
+        cost: {
+          label: "Meal (estimated)",
+          amount: ESTIMATED_MEAL_COST_PER_PERSON * partySize,
+          currency,
+          basis: "estimated",
+        },
       });
     } else {
       items.push({
@@ -486,6 +514,12 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
         endTime: "14:00",
         evidence: [],
         notes: "No live restaurant candidates were available for this day.",
+        cost: {
+          label: "Meal (estimated)",
+          amount: ESTIMATED_MEAL_COST_PER_PERSON * partySize,
+          currency,
+          basis: "estimated",
+        },
       });
     }
 
@@ -514,11 +548,55 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
   }
 
   // ---- Totals & verdict ----
+
   const lines: CostLine[] = [];
   if (stayTotal) lines.push(stayTotal);
+
+  // Estimated activity costs (entry fees, per attraction slot).
+  const estimatedActivityTotal =
+    ESTIMATED_ACTIVITY_COST_PER_PERSON * partySize * attractionSlots;
+  if (attractionSlots > 0) {
+    lines.push({
+      label: `Activity entry fees (~${attractionSlots} slot${attractionSlots === 1 ? "" : "s"})`,
+      amount: estimatedActivityTotal,
+      currency,
+      basis: "estimated",
+    });
+  }
+
+  // Estimated meal costs (lunch per day).
+  const estimatedMealTotal = ESTIMATED_MEAL_COST_PER_PERSON * partySize * dayCount;
+  lines.push({
+    label: `Meals (lunch × ${dayCount} day${dayCount === 1 ? "" : "s"})`,
+    amount: estimatedMealTotal,
+    currency,
+    basis: "estimated",
+  });
+
+  // Estimated transport costs (local travel per day).
+  const estimatedTransportTotal =
+    ESTIMATED_TRANSPORT_COST_PER_PERSON * partySize * dayCount;
+  lines.push({
+    label: `Local transport (~${dayCount} day${dayCount === 1 ? "" : "s"})`,
+    amount: estimatedTransportTotal,
+    currency,
+    basis: "estimated",
+  });
+
+  const estimatedTotalAmount =
+    estimatedActivityTotal + estimatedMealTotal + estimatedTransportTotal;
+
   const totals: CostBreakdown = { lines, currency };
   if (stayTotal?.amount !== undefined) {
     totals.liveTotal = { ...stayTotal };
+  }
+  if (estimatedTotalAmount > 0) {
+    totals.estimatedTotal = {
+      label: "Estimated total (activities + meals + transport)",
+      amount: estimatedTotalAmount,
+      currency,
+      basis: "estimated",
+    };
   }
   let budgetVerdict: TripPlan["budgetVerdict"] = "unknown";
   if (requirements.budget && pricesVerified && totals.liveTotal?.amount !== undefined) {
@@ -559,5 +637,6 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
     totals,
     pricesVerified,
     ...(input.destinationContext ? { destinationContext: input.destinationContext } : {}),
+    ...(input.research ? { researchStatus: input.research } : {}),
   };
 }

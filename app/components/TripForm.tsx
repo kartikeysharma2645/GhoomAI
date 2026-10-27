@@ -138,6 +138,19 @@ export default function TripForm() {
   const [plan, setPlan] = useState<TripPlanData | null>(null);
   const [activeTrip, setActiveTrip] = useState<ActiveTripData | null>(null);
   const [activating, setActivating] = useState(false);
+  /** Stores the last submitted plan request for retry/research recovery. */
+  const [lastRequest, setLastRequest] = useState<{
+    destination: string;
+    startDate?: string;
+    endDate?: string;
+    adults: number;
+    children: number;
+    teenagers: number;
+    seniors: number;
+    budget?: { amount: number; currency: string };
+    interests?: string[];
+    pace: (typeof PACES)[number];
+  } | null>(null);
   /**
    * Explicit user approval of the itinerary. Phase 9 Prompt 1: approval is
    * the sanctioned entry into the APPROVED lifecycle state shown to the
@@ -158,7 +171,7 @@ export default function TripForm() {
     setError(null);
     setNeedsInput(null);
     try {
-      const { status, json } = await postJson("/api/trips/plan", {
+      const requestBody = {
         destination: destination.trim() || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
@@ -171,7 +184,22 @@ export default function TripForm() {
           : undefined,
         interests: interests.length > 0 ? interests : undefined,
         pace,
+      };
+      setLastRequest({
+        destination: destination.trim() || "Unknown",
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        adults,
+        children,
+        teenagers,
+        seniors,
+        budget: budget.trim()
+          ? { amount: Number(budget), currency: "INR" }
+          : undefined,
+        interests: interests.length > 0 ? interests : undefined,
+        pace,
       });
+      const { status, json } = await postJson("/api/trips/plan", requestBody);
       if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
         throw new Error(errorMessage(json, "Something went wrong."));
       }
@@ -214,6 +242,85 @@ export default function TripForm() {
       setError(err instanceof Error ? err.message : "Request failed.");
     } finally {
       setActivating(false);
+    }
+  }
+
+  /** Retry the last plan request (preserves all preferences). */
+  async function handleRetryResearch() {
+    if (!lastRequest || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { status, json } = await postJson("/api/trips/plan", lastRequest);
+      if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
+        throw new Error(errorMessage(json, "Something went wrong."));
+      }
+      const data = parsePlanResponse(json.data);
+      if (data.kind === "needs_input") {
+        setPlan(null);
+        setActiveTrip(null);
+        setApproved(false);
+        setNeedsInput(data.input);
+      } else {
+        setNeedsInput(null);
+        setPlan(data.plan as unknown as TripPlanData);
+        setActiveTrip(null);
+        setApproved(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Retry failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** Broaden the destination to its city/region context and re-plan. */
+  async function handleBroadenSearch() {
+    if (!plan || !lastRequest) return;
+    // Extract city context from destination (e.g. "Brooklyn" from "Salt Marsh Nature Center, Brooklyn")
+    const dest = lastRequest.destination || plan.destination;
+    const commaIdx = dest.lastIndexOf(",");
+    const broadened = commaIdx >= 0 ? dest.slice(commaIdx + 1).trim() : dest;
+    if (broadened === dest) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { status, json } = await postJson("/api/trips/plan", {
+        ...lastRequest,
+        destination: broadened,
+      });
+      if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
+        throw new Error(errorMessage(json, "Something went wrong."));
+      }
+      const data = parsePlanResponse(json.data);
+      if (data.kind === "needs_input") {
+        setPlan(null);
+        setActiveTrip(null);
+        setApproved(false);
+        setNeedsInput(data.input);
+      } else {
+        setNeedsInput(null);
+        setPlan(data.plan as unknown as TripPlanData);
+        setActiveTrip(null);
+        setApproved(false);
+        // Update the destination field to reflect the broadened search
+        setDestination(broadened);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Broadened search failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** Let the user refine the destination by editing it inline. */
+  function handleRefineDestination() {
+    if (plan) {
+      setDestination(plan.destination);
+      setPlan(null);
+      setActiveTrip(null);
+      setApproved(false);
+      setError(null);
     }
   }
 
@@ -389,7 +496,12 @@ export default function TripForm() {
 
       {plan && (
         <div className="mt-8">
-          <ItineraryView plan={plan} />
+          <ItineraryView
+            plan={plan}
+            onRetryResearch={handleRetryResearch}
+            onBroadenSearch={handleBroadenSearch}
+            onRefineDestination={handleRefineDestination}
+          />
           <RealityCheckSection
             key={planSignature(plan)}
             plan={plan}

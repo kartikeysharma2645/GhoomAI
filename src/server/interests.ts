@@ -49,6 +49,14 @@ export const ATTRACTIONS_FALLBACK_QUERIES = [
   "places to visit in {destination}",
 ];
 
+/** Fallback restaurant queries tried when the primary restaurant query
+ * returns too few results. Used by the research layer to avoid ending up
+ * with an empty restaurant pool for a valid destination. */
+export const FOOD_FALLBACK_QUERIES = [
+  "best restaurants in {destination}",
+  "places to eat in {destination}",
+];
+
 export function renderMapsQuery(
   template: string,
   destination: string,

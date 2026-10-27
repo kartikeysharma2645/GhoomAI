@@ -921,9 +921,9 @@ describe("orchestrator dispatch", () => {
     expect(JSON.stringify(res.session.activePlan)).toBe(before);
     expect(res.session.tripStatus).toBe("PLANNED");
     // Each research method was attempted (attractions try 3 fallback queries
-    // when all fail, plus one food query). Retries happen inside requestJson
+    // when all fail, plus up to 3 restaurant fallback queries). Retries happen
     // at the transport level, tested in serpapi-client tests.
-    expect(failing.searchMaps).toHaveBeenCalledTimes(4);
+    expect(failing.searchMaps).toHaveBeenCalledTimes(6);
     expect(failing.searchHotels).toHaveBeenCalledTimes(1);
   });
 
