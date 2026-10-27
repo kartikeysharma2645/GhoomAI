@@ -8,6 +8,11 @@ import RealityCheckSection from "./RealityCheckSection";
 import { postJson } from "./request";
 import { parsePlanResponse } from "./planResult";
 import { missingFieldLabel } from "./agentChatHelpers";
+import {
+  buildIcsContentClient,
+  downloadIcs,
+  icsFilenameClient,
+} from "./calendarExportClient";
 
 type ActiveTripData = LiveTripData;
 
@@ -26,6 +31,12 @@ const ALL_INTERESTS = [
 ] as const;
 
 const PACES = ["relaxed", "balanced", "packed"] as const;
+
+const ALL_ACCESSIBILITY = [
+  "wheelchair",
+  "stepFree",
+  "reducedWalking",
+] as const;
 
 type NeedsInput = { status: "needs_input"; missing: string[]; message: string };
 
@@ -132,6 +143,7 @@ export default function TripForm() {
   const [budget, setBudget] = useState("25000");
   const [interests, setInterests] = useState<string[]>(["history", "food"]);
   const [pace, setPace] = useState<(typeof PACES)[number]>("balanced");
+  const [accessibility, setAccessibility] = useState<Array<(typeof ALL_ACCESSIBILITY)[number]>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsInput, setNeedsInput] = useState<NeedsInput | null>(null);
@@ -150,6 +162,7 @@ export default function TripForm() {
     budget?: { amount: number; currency: string };
     interests?: string[];
     pace: (typeof PACES)[number];
+    accessibility?: string[];
   } | null>(null);
   /**
    * Explicit user approval of the itinerary. Phase 9 Prompt 1: approval is
@@ -160,6 +173,12 @@ export default function TripForm() {
 
   function toggleInterest(i: string) {
     setInterests((prev) =>
+      prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i],
+    );
+  }
+
+  function toggleAccessibility(i: (typeof ALL_ACCESSIBILITY)[number]) {
+    setAccessibility((prev) =>
       prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i],
     );
   }
@@ -184,6 +203,8 @@ export default function TripForm() {
           : undefined,
         interests: interests.length > 0 ? interests : undefined,
         pace,
+        accessibility:
+          accessibility.length > 0 ? (accessibility as string[]) : undefined,
       };
       setLastRequest({
         destination: destination.trim() || "Unknown",
@@ -198,6 +219,8 @@ export default function TripForm() {
           : undefined,
         interests: interests.length > 0 ? interests : undefined,
         pace,
+        accessibility:
+          accessibility.length > 0 ? (accessibility as string[]) : undefined,
       });
       const { status, json } = await postJson("/api/trips/plan", requestBody);
       if (status !== 200 || !isRecord(json) || json.ok !== true || !isRecord(json.data)) {
@@ -321,6 +344,36 @@ export default function TripForm() {
       setActiveTrip(null);
       setApproved(false);
       setError(null);
+    }
+  }
+
+  /** Export the current itinerary to a downloadable .ics calendar file. */
+  function handleExportCalendar() {
+    if (!plan) return;
+    try {
+      const content = buildIcsContentClient({
+        destination: plan.destination,
+        days: plan.days.map((d) => ({
+          dayNumber: d.dayNumber,
+          date: d.date,
+          items: d.items.map((i) => ({
+            id: i.id,
+            kind: i.kind,
+            title: i.title,
+            startTime: i.startTime,
+            endTime: i.endTime,
+            place: i.place
+              ? { name: i.place.name, address: i.place.address }
+              : undefined,
+            notes: i.notes,
+          })),
+        })),
+      });
+      downloadIcs(content, icsFilenameClient(plan.destination));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Calendar export failed.",
+      );
     }
   }
 
@@ -464,6 +517,37 @@ export default function TripForm() {
             ))}
           </div>
         </div>
+        <div>
+          <span className={labelCls}>Accessibility needs</span>
+          <p className="text-xs text-stone-500 mt-1">
+            Used as a soft preference — places without accessibility
+            information are never excluded.
+          </p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {ALL_ACCESSIBILITY.map((a) => {
+              const labels: Record<string, string> = {
+                wheelchair: "Wheelchair accessible",
+                stepFree: "Step-free access",
+                reducedWalking: "Reduced walking",
+              };
+              return (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => toggleAccessibility(a)}
+                  aria-pressed={accessibility.includes(a)}
+                  className={`rounded-full px-3 py-1 text-sm ${
+                    accessibility.includes(a)
+                      ? "bg-stone-900 text-white"
+                      : "border border-stone-300 bg-white text-stone-600"
+                  }`}
+                >
+                  {labels[a]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <button
           type="submit"
           disabled={loading}
@@ -501,6 +585,7 @@ export default function TripForm() {
             onRetryResearch={handleRetryResearch}
             onBroadenSearch={handleBroadenSearch}
             onRefineDestination={handleRefineDestination}
+            onExportCalendar={handleExportCalendar}
           />
           <RealityCheckSection
             key={planSignature(plan)}

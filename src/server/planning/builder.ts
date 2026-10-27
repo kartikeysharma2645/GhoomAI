@@ -12,6 +12,7 @@ import type {
   TripPlan,
 } from "../trips/plan";
 import { scorePlace } from "./scoring";
+import { scoreAccessibility } from "../accessibility";
 
 /**
  * Phase 4 Step 2 deterministic itinerary builder.
@@ -51,6 +52,7 @@ export interface BuilderInput {
     attractions: "searched" | "empty" | "failed" | "skipped";
     food: "searched" | "empty" | "failed" | "skipped";
   };
+  accessibility?: string[];
 }
 
 export const ROUTE_WARNING =
@@ -331,15 +333,30 @@ export function buildTripPlan(input: BuilderInput): TripPlan {
       const typesToday = new Set(
         dayPicks[day]?.map((s) => primaryType(s.place)) ?? [],
       );
-      const scored = remaining.map(({ place, index }) => ({
-        place,
-        index,
-        scored: scorePlace(place, index, {
+      const scored = remaining.map(({ place, index }) => {
+        const placeScore = scorePlace(place, index, {
           interests: requirements.interests,
           scheduledTypesToday: typesToday,
           scheduledKeys,
-        }),
-      }));
+        });
+        const accessibilityScore = scoreAccessibility(
+          place,
+          (input.accessibility ?? []) as import("../accessibility").AccessibilityPreference[],
+        );
+        return {
+          place,
+          index,
+          scored: {
+            score: placeScore.score + accessibilityScore,
+            reasons: [
+              ...placeScore.reasons,
+              ...(accessibilityScore > 0
+                ? ["accessibility match"]
+                : []),
+            ],
+          },
+        };
+      });
       scored.sort((a, b) => b.scored.score - a.scored.score || a.index - b.index);
       const best = scored[0];
       if (!best) break outer;

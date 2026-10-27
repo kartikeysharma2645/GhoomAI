@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ValidationError } from "../../lib/errors";
 import { TRIP_INTERESTS } from "../interests";
 import { parseIsoCalendarDate } from "../services/serpapi/types";
+import { ACCESSIBILITY_PREFERENCES } from "../accessibility";
 
 /**
  * Phase 4 Step 1 trip requirements.
@@ -39,6 +40,10 @@ export const tripPlanRequestSchema = z.object({
     .optional(),
   interests: z.array(z.enum(TRIP_INTERESTS)).max(6).optional(),
   pace: z.enum(TRAVEL_PACES).optional(),
+  accessibility: z
+    .array(z.enum(ACCESSIBILITY_PREFERENCES))
+    .max(3)
+    .optional(),
   accommodation: z
     .object({
       type: z.enum(["hotel", "any"]).optional(),
@@ -70,6 +75,7 @@ export const tripRequirementsSchema = z.object({
     .optional(),
   interests: z.array(z.enum(TRIP_INTERESTS)),
   pace: z.enum(TRAVEL_PACES),
+  accessibility: z.array(z.enum(ACCESSIBILITY_PREFERENCES)).optional(),
   accommodation: z
     .object({
       type: z.enum(["hotel", "any"]),
@@ -155,6 +161,7 @@ export function resolveRequirements(
     budget,
     interests: input.interests ?? [],
     pace,
+    accessibility: input.accessibility ?? [],
     accommodation: input.accommodation
       ? {
           type: input.accommodation.type ?? "any",

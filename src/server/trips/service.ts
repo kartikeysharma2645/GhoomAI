@@ -189,6 +189,7 @@ export async function planTrip(
     hotelsQuery,
     queryForPlace: (place) => origin.get(place),
     research: placeResearch,
+    accessibility: requirements.accessibility,
   });
 
   return { status: "ready", plan };

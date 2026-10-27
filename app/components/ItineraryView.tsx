@@ -7,6 +7,11 @@
 import React from "react";
 import { externalPlaceUrl } from "./agentChatHelpers";
 import ExternalLink from "./ExternalLink";
+import {
+  buildIcsContentClient,
+  downloadIcs,
+  icsFilenameClient,
+} from "./calendarExportClient";
 
 export interface PlanEvidence {
   engine: string;
@@ -179,11 +184,13 @@ export default function ItineraryView({
   onRetryResearch,
   onBroadenSearch,
   onRefineDestination,
+  onExportCalendar,
 }: {
   plan: TripPlanData;
   onRetryResearch?: () => void;
   onBroadenSearch?: () => void;
   onRefineDestination?: () => void;
+  onExportCalendar?: () => void;
 }) {
   const hasAttractions = plan.days.some((day) =>
     day.items.some((item) => item.kind === "attraction"),
@@ -220,6 +227,16 @@ export default function ItineraryView({
             <span className="rounded-full border border-stone-200 bg-stone-100 px-3 py-1 text-xs text-stone-600">
               prices unverified
             </span>
+          )}
+          {onExportCalendar && (
+            <button
+              type="button"
+              onClick={onExportCalendar}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+              disabled={!onExportCalendar}
+            >
+              Export to calendar
+            </button>
           )}
         </div>
         <p className="mt-1.5 text-sm text-stone-600">
